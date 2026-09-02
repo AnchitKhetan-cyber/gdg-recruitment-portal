@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react"
 import { Clock } from "lucide-react"
 
 export const formatDuration = (totalSeconds) => {
@@ -15,20 +14,9 @@ export const formatDuration = (totalSeconds) => {
  * re-synced from the server, so this is presentation only.
  */
 const Timer = ({ seconds, totalSeconds }) => {
-  const announcedRef = useRef(new Set())
-
   const isCritical = seconds <= 60
   const isWarning = !isCritical && seconds <= 300
   const progress = totalSeconds ? Math.max(0, Math.min(1, seconds / totalSeconds)) : 0
-
-  // Announce the milestones once each, for screen-reader users.
-  useEffect(() => {
-    for (const milestone of [300, 60]) {
-      if (seconds === milestone && !announcedRef.current.has(milestone)) {
-        announcedRef.current.add(milestone)
-      }
-    }
-  }, [seconds])
 
   const tone = isCritical
     ? "border-gdg-red/40 bg-gdg-red/10 text-gdg-red"

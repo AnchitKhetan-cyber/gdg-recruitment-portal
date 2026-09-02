@@ -8,18 +8,16 @@
   },
   "scripts": {
     "install:all": "npm install --prefix backend && npm install --prefix apps/portal && npm install --prefix apps/admin",
-
     "dev": "npm run dev --prefix backend",
     "dev:mem": "npm run dev:mem --prefix backend",
     "dev:portal": "npm run dev --prefix apps/portal",
     "dev:admin": "npm run dev --prefix apps/admin",
-
     "build": "npm run build --prefix apps/portal && npm run build --prefix apps/admin",
-
     "seed": "npm run seed --prefix backend",
     "demo": "npm run demo --prefix backend",
     "test": "npm run test --prefix backend",
-    "hash-admin-password": "npm run hash-admin-password --prefix backend"
+    "hash-admin-password": "npm run hash-admin-password --prefix backend",
+    "lint": "npm run lint --prefix apps/portal && npm run lint --prefix apps/admin"
   },
   "license": "MIT"
 }

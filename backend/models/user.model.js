@@ -51,14 +51,43 @@ const responseSchema = new mongoose.Schema(
   { _id: false }
 )
 
+/**
+ * Proctoring events fall into two classes.
+ *
+ * ENFORCED events are unambiguous acts by the candidate - they left the tab,
+ * they left fullscreen - so the server counts them and closes the attempt at
+ * the limit.
+ *
+ * ADVISORY events come from heuristics that are wrong often enough that acting
+ * on them automatically would fail honest candidates. A phone-shaped object in
+ * a webcam frame is a reason for a human to look, not to end someone's
+ * application. They are recorded and surfaced for review, and never auto-submit.
+ */
+export const ENFORCED_VIOLATIONS = ["tab-switch", "window-blur", "fullscreen-exit"]
+
+export const ADVISORY_VIOLATIONS = [
+  "copy",
+  "paste",
+  "devtools",
+  "device-detected",
+  "multiple-people",
+  "no-person"
+]
+
+export const VIOLATION_TYPES = [...ENFORCED_VIOLATIONS, ...ADVISORY_VIOLATIONS]
+
 const violationSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["tab-switch", "window-blur", "fullscreen-exit", "copy", "paste", "devtools"],
+      enum: VIOLATION_TYPES,
       required: true
     },
-    at: { type: Date, default: Date.now }
+    at: { type: Date, default: Date.now },
+    /** Free-text detail, e.g. which object the camera matched. */
+    detail: { type: String, default: "", maxlength: 200 },
+    /** Detector confidence 0-1, present only for camera events. */
+    confidence: { type: Number, min: 0, max: 1 }
   },
   { _id: false }
 )
@@ -149,6 +178,15 @@ userSchema.pre("save", function (next) {
 })
 
 /** Seconds of attempt time remaining, derived from the server-side anchor. */
+/** Only enforced events count toward the auto-submit limit. */
+userSchema.methods.getEnforcedViolationCount = function () {
+  return (this.violations || []).filter((v) => ENFORCED_VIOLATIONS.includes(v.type)).length
+}
+
+userSchema.methods.getAdvisoryFlagCount = function () {
+  return (this.violations || []).filter((v) => ADVISORY_VIOLATIONS.includes(v.type)).length
+}
+
 userSchema.methods.getTimeRemaining = function () {
   if (!this.startedAt || !this.quiz?.duration) return 0
   const total = this.quiz.duration * 60

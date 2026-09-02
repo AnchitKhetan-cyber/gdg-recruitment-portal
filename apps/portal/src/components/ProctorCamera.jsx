@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import { Camera, CameraOff, ChevronDown } from "lucide-react"
+import { AlertTriangle, Camera, CameraOff, ChevronDown, ScanEye } from "lucide-react"
+import { useDeviceDetection } from "../utils/useDeviceDetection"
 
 /**
- * The candidate's own camera preview.
+ * The candidate's camera preview, plus on-device object detection.
  *
- * Nothing is recorded or transmitted - this is a presence cue that keeps the
- * candidate aware they are sitting a monitored assessment. It fails soft: a
- * denied permission shows a notice rather than blocking the test.
+ * The video never leaves the browser: frames are analysed locally and only the
+ * resulting flag - a label and a confidence - is sent to the server. Nothing is
+ * recorded or uploaded.
  */
-const ProctorCamera = () => {
+const ProctorCamera = ({ active = true, onFlag }) => {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const [state, setState] = useState("starting") // starting | live | denied | unavailable
@@ -51,6 +52,12 @@ const ProctorCamera = () => {
     }
   }, [])
 
+  const detection = useDeviceDetection({
+    active: active && state === "live",
+    videoRef,
+    onFlag
+  })
+
   if (state === "denied" || state === "unavailable") {
     return (
       <div className="flex items-start gap-2.5 rounded-xl border border-gdg-yellow/40 bg-gdg-yellow/10 p-3 text-xs text-[#7a5600]">
@@ -63,6 +70,8 @@ const ProctorCamera = () => {
       </div>
     )
   }
+
+  const recentFinding = detection.lastFinding && Date.now() - detection.lastFinding.at < 12_000
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
@@ -85,17 +94,46 @@ const ProctorCamera = () => {
       </button>
 
       <div className={collapsed ? "hidden" : "block"}>
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          aria-label="Your camera preview"
-          className="aspect-4/3 w-full bg-ink object-cover"
-        />
-        <p className="px-3 py-2 text-[11px] leading-snug text-ink-subtle">
-          This preview is local to your device and is not recorded.
-        </p>
+        <div className="relative">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            aria-label="Your camera preview"
+            className="aspect-4/3 w-full bg-ink object-cover"
+          />
+
+          {recentFinding && (
+            <div
+              role="status"
+              className="absolute inset-x-0 bottom-0 flex items-start gap-1.5 bg-gdg-red/90 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white"
+            >
+              <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden="true" />
+              <span>Possible {detection.lastFinding.detail} in view - this was flagged</span>
+            </div>
+          )}
+        </div>
+
+        <div className="px-3 py-2">
+          {detection.state === "loading" && (
+            <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+              <ScanEye className="size-3 animate-pulse" aria-hidden="true" />
+              Starting object detection...
+            </p>
+          )}
+
+          {detection.state === "running" && (
+            <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+              <ScanEye className="size-3 text-gdg-green" aria-hidden="true" />
+              Scanning for phones and other people
+            </p>
+          )}
+
+          <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
+            Analysed on your device. No video is recorded or uploaded.
+          </p>
+        </div>
       </div>
     </div>
   )

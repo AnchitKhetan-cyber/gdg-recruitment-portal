@@ -4,7 +4,7 @@ import { z } from "zod"
 import { env } from "../config/env.js"
 import { Allowed, EMAIL_REGEX, PHONE_REGEX } from "../models/allowed.model.js"
 import { Quiz } from "../models/quiz.model.js"
-import { User } from "../models/user.model.js"
+import { ENFORCED_VIOLATIONS, User } from "../models/user.model.js"
 import { ADMIN_COOKIE, cookieOptions, generateAdminToken } from "../middlewares/auth.middleware.js"
 import { ApiError } from "../utils/apiError.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
@@ -320,9 +320,11 @@ export const getAllResults = asyncHandler(async (req, res) => {
     getStatusCounts()
   ])
 
-  const rows = users.map(({ violations, ...rest }) => ({
+  const rows = users.map(({ violations = [], ...rest }) => ({
     ...rest,
-    violationCount: violations?.length || 0
+    // Split, so a reviewer can tell a deliberate tab switch from a camera guess.
+    violationCount: violations.filter((v) => ENFORCED_VIOLATIONS.includes(v.type)).length,
+    flagCount: violations.filter((v) => !ENFORCED_VIOLATIONS.includes(v.type)).length
   }))
 
   return ok(
@@ -496,6 +498,7 @@ export const exportResults = asyncHandler(async (req, res) => {
     "Percentage",
     "Time Used (mm:ss)",
     "Violations",
+    "Review Flags",
     "Auto Submitted",
     "Qualified",
     "Submitted At"
@@ -516,7 +519,8 @@ export const exportResults = asyncHandler(async (req, res) => {
       user.hasSubmitted ? user.maxScore : "",
       pct,
       user.hasSubmitted ? `${mm}:${ss}` : "",
-      user.violations?.length || 0,
+      (user.violations || []).filter((v) => ENFORCED_VIOLATIONS.includes(v.type)).length,
+      (user.violations || []).filter((v) => !ENFORCED_VIOLATIONS.includes(v.type)).length,
       user.autoSubmitReason || "",
       user.qualifiedForInterview ? "Yes" : "No",
       user.submittedAt ? new Date(user.submittedAt).toISOString() : ""

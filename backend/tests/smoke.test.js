@@ -267,6 +267,43 @@ await test("violations are counted server-side", async () => {
   assert.equal(first.data.count, 1)
   assert.equal(first.data.remaining, 2)
   assert.equal(first.data.submitted, false)
+  assert.equal(first.data.enforced, true)
+})
+
+await test("camera flags are recorded but never count toward the limit", async () => {
+  // MAX_VIOLATIONS is 3 in this suite and one tab-switch is already used, so
+  // three camera findings would end the attempt if they were enforced.
+  for (const finding of ["device-detected", "multiple-people", "no-person"]) {
+    const response = await candidate("/api/user/violation", {
+      method: "POST",
+      body: { type: finding, detail: "phone", confidence: 0.82 },
+      headers: auth
+    })
+
+    assert.equal(response.status, 200)
+    assert.equal(response.data.enforced, false, `${finding} must not be enforced`)
+    assert.equal(response.data.submitted, false, `${finding} must not end the attempt`)
+    assert.equal(response.data.count, 1, "the enforced count must not move")
+  }
+
+  const after = await User.findOne({ email })
+  assert.equal(after.hasSubmitted, false, "camera flags must not submit the attempt")
+  assert.equal(after.violations.length, 4, "every event should still be stored")
+  assert.equal(after.getAdvisoryFlagCount(), 3)
+  assert.equal(after.getEnforcedViolationCount(), 1)
+
+  const stored = after.violations.find((v) => v.type === "device-detected")
+  assert.equal(stored.detail, "phone")
+  assert.equal(stored.confidence, 0.82)
+})
+
+await test("an unknown violation type is rejected", async () => {
+  const { status } = await candidate("/api/user/violation", {
+    method: "POST",
+    body: { type: "made-up-event" },
+    headers: auth
+  })
+  assert.equal(status, 400)
 })
 
 await test("submission is graded server-side against the snapshot", async () => {

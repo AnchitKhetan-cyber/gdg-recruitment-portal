@@ -48,7 +48,7 @@ const RULES = [
     icon: Camera,
     accent: "text-gdg-yellow",
     title: "Your camera stays on",
-    body: "A local camera preview runs during the test as a presence check. Nothing is recorded or uploaded."
+    body: "Your webcam is checked in your browser for phones and for other people in the room. The video is analysed on your device and is never recorded or uploaded — only a note of what was seen is sent, for a human to review."
   },
   {
     icon: Wifi,

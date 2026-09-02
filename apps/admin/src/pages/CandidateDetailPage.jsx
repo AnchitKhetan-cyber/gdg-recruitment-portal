@@ -15,6 +15,9 @@ import {
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"]
 
+/** Mirrors ENFORCED_VIOLATIONS on the server. */
+const ENFORCED = new Set(["tab-switch", "window-blur", "fullscreen-exit"])
+
 const CandidateDetailPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -211,23 +214,48 @@ const CandidateDetailPage = () => {
         </Button>
       </Card>
 
-      {/* Violation log */}
+      {/* Proctoring log */}
       {user.violations?.length > 0 && (
         <Card className="p-5">
           <h2 className="text-sm font-semibold text-ink">Proctoring log</h2>
-          <ul className="mt-3 space-y-1.5">
-            {user.violations.map((violation, index) => (
-              <li
-                key={`${violation.at}-${index}`}
-                className="flex items-center gap-3 text-sm text-ink-muted"
-              >
-                <span className="font-mono text-xs text-ink-subtle tabular-nums">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <Badge tone="yellow">{violation.type}</Badge>
-                <span className="text-xs">{formatDate(violation.at)}</span>
-              </li>
-            ))}
+          <p className="mt-0.5 text-xs text-ink-subtle">
+            Enforced events counted toward the auto-submit limit. Camera findings are
+            machine guesses shown for your judgement — they never ended the attempt.
+          </p>
+
+          <ul className="mt-4 space-y-1.5">
+            {user.violations.map((violation, index) => {
+              const enforced = ENFORCED.has(violation.type)
+
+              return (
+                <li
+                  key={`${violation.at}-${index}`}
+                  className="flex flex-wrap items-center gap-2.5 text-sm text-ink-muted"
+                >
+                  <span className="w-6 font-mono text-xs text-ink-subtle tabular-nums">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+
+                  <Badge tone={enforced ? "red" : "neutral"}>{violation.type}</Badge>
+
+                  {!enforced && <span className="text-[11px] text-ink-subtle">review only</span>}
+
+                  {violation.detail && (
+                    <span className="text-xs text-ink">{violation.detail}</span>
+                  )}
+
+                  {typeof violation.confidence === "number" && (
+                    <span className="font-mono text-[11px] text-ink-subtle">
+                      {Math.round(violation.confidence * 100)}% confident
+                    </span>
+                  )}
+
+                  <span className="ml-auto text-xs text-ink-subtle">
+                    {formatDate(violation.at)}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </Card>
       )}

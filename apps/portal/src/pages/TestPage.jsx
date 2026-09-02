@@ -128,6 +128,12 @@ const TestPage = () => {
 
   /* -------------------------------------------------------- proctoring */
 
+  /** Camera findings are advisory: recorded for review, never a warning banner. */
+  const handleCameraFlag = useCallback(
+    ({ type, detail, confidence }) => reportViolation(type, { detail, confidence }),
+    [reportViolation]
+  )
+
   const handleViolation = useCallback(
     async (type) => {
       const result = await reportViolation(type)
@@ -370,7 +376,7 @@ const TestPage = () => {
             </p>
           </div>
 
-          <ProctorCamera />
+          <ProctorCamera active={status === "ready"} onFlag={handleCameraFlag} />
 
           {violations > 0 && (
             <div className="rounded-xl border border-gdg-red/30 bg-gdg-red/[0.06] p-3 text-xs text-gdg-red">

@@ -19,7 +19,8 @@ const initialState = {
   currentIndex: 0,
 
   timeRemaining: 0,
-  violations: 0,
+  violations: 0, // enforced events; these can end the attempt
+  flags: 0, // advisory camera findings; recorded for review only
   maxViolations: 4,
 
   pendingSave: false,
@@ -132,12 +133,13 @@ export const useQuizStore = create((set, get) => ({
     }
   },
 
-  reportViolation: async (type) => {
+  reportViolation: async (type, extra = {}) => {
     if (get().status !== "ready") return null
 
     try {
-      const data = await api.reportViolation(type)
-      set({ violations: data.count })
+      const data = await api.reportViolation(type, extra)
+      // `count` is the enforced total; camera flags do not move it.
+      set({ violations: data.count, flags: data.flags ?? get().flags })
 
       if (data.submitted) {
         set({ status: "submitted", submission: data })

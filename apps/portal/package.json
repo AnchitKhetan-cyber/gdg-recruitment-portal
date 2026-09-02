@@ -11,6 +11,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.12.2",
     "firebase": "^12.2.1",
     "framer-motion": "^12.23.22",

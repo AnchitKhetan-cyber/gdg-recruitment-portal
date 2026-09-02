@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  ScanEye,
   Search,
   ShieldAlert,
   Sparkles,
@@ -318,13 +319,19 @@ const ResultsPage = () => {
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {user.violationCount > 0 && (
-                              <Badge tone="yellow">
+                              <Badge tone="yellow" className="whitespace-nowrap">
                                 <ShieldAlert className="size-3" aria-hidden="true" />
-                                {user.violationCount}
+                                {user.violationCount} left tab
+                              </Badge>
+                            )}
+                            {user.flagCount > 0 && (
+                              <Badge tone="neutral" className="whitespace-nowrap">
+                                <ScanEye className="size-3" aria-hidden="true" />
+                                {user.flagCount} to review
                               </Badge>
                             )}
                             {user.autoSubmitted && <Badge tone="red">auto-submitted</Badge>}
-                            {!user.violationCount && !user.autoSubmitted && (
+                            {!user.violationCount && !user.flagCount && !user.autoSubmitted && (
                               <span className="text-xs text-ink-subtle">clean</span>
                             )}
                           </div>

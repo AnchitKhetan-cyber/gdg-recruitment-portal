@@ -57,7 +57,8 @@ export const api = {
   saveProgress: (responses) =>
     apiClient.post("/user/save-progress", { responses }).then((r) => r.data),
 
-  reportViolation: (type) => apiClient.post("/user/violation", { type }).then((r) => r.data),
+  reportViolation: (type, extra = {}) =>
+    apiClient.post("/user/violation", { type, ...extra }).then((r) => r.data),
 
   submitQuiz: (responses) => apiClient.post("/user/submit-quiz", { responses }).then((r) => r.data)
 }

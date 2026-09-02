@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { Allowed } from "../models/allowed.model.js"
 import { Quiz } from "../models/quiz.model.js"
-import { User } from "../models/user.model.js"
+import { ENFORCED_VIOLATIONS, User, VIOLATION_TYPES } from "../models/user.model.js"
 import {
   SESSION_COOKIE,
   cookieOptions,
@@ -37,7 +37,9 @@ const progressSchema = z.object({
 })
 
 const violationSchema = z.object({
-  type: z.enum(["tab-switch", "window-blur", "fullscreen-exit", "copy", "paste", "devtools"])
+  type: z.enum(VIOLATION_TYPES),
+  detail: z.string().max(200).optional(),
+  confidence: z.number().min(0).max(1).optional()
 })
 
 /** Shape returned to the portal for the signed-in candidate. */
@@ -171,7 +173,7 @@ export const startQuiz = asyncHandler(async (req, res) => {
         })),
         timeRemaining,
         timeUsed: user.getElapsedSeconds(),
-        violations: user.violations.length,
+        violations: user.getEnforcedViolationCount(),
         maxViolations: env.maxViolations
       },
       "Test resumed"
@@ -251,23 +253,28 @@ export const saveProgress = asyncHandler(async (req, res) => {
  * browser, where the old localStorage counter could simply be edited away.
  */
 export const recordViolation = asyncHandler(async (req, res) => {
-  const { type } = parseOrThrow(violationSchema, req.body)
+  const { type, detail, confidence } = parseOrThrow(violationSchema, req.body)
 
   const user = await User.findOne({ _id: req.user.id, email: req.user.email })
   if (!user) throw ApiError.notFound("User not found")
+
   if (!user.hasStarted || user.hasSubmitted) {
-    return ok(res, { count: user.violations.length, submitted: user.hasSubmitted }, "Ignored")
+    return ok(res, { count: user.getEnforcedViolationCount(), submitted: user.hasSubmitted }, "Ignored")
   }
 
-  user.violations.push({ type, at: new Date() })
+  user.violations.push({ type, at: new Date(), detail: detail || "", confidence })
 
-  const count = user.violations.length
+  const isEnforced = ENFORCED_VIOLATIONS.includes(type)
+  const count = user.getEnforcedViolationCount()
+  const flags = user.getAdvisoryFlagCount()
 
-  if (count >= env.maxViolations) {
+  // Advisory events - anything a heuristic guessed at - are recorded for a
+  // human to review and never end an attempt on their own.
+  if (isEnforced && count >= env.maxViolations) {
     const result = await finalizeAttempt(user, { autoReason: "violations-exceeded" })
     return ok(
       res,
-      { count, maxViolations: env.maxViolations, submitted: true, ...result },
+      { count, flags, maxViolations: env.maxViolations, enforced: true, submitted: true, ...result },
       "Violation limit reached - your test was submitted"
     )
   }
@@ -278,11 +285,13 @@ export const recordViolation = asyncHandler(async (req, res) => {
     res,
     {
       count,
+      flags,
       maxViolations: env.maxViolations,
-      remaining: env.maxViolations - count,
+      remaining: Math.max(0, env.maxViolations - count),
+      enforced: isEnforced,
       submitted: false
     },
-    "Violation recorded"
+    isEnforced ? "Violation recorded" : "Flagged for review"
   )
 })
 

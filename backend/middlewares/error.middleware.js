@@ -39,6 +39,9 @@ export const errorHandler = (err, req, res, _next) => {
     success: false,
     message,
     ...(details ? { details } : {}),
-    ...(env.isProduction ? {} : { stack: err.stack })
+    // Stacks are development-only, and gated on an explicit opt-in rather than
+    // on NODE_ENV alone - a deployment that forgets to set NODE_ENV=production
+    // would otherwise hand internal paths and query shapes to any caller.
+    ...(env.exposeStackTraces ? { stack: err.stack } : {})
   })
 }

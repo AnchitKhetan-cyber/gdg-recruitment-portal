@@ -19,7 +19,8 @@
     "test": "node tests/smoke.test.js",
     "demo": "node scripts/demo_attempts.js",
     "install:sa": "node scripts/install_service_account.js",
-    "verify:firebase": "node scripts/verify_firebase.js"
+    "verify:firebase": "node scripts/verify_firebase.js",
+    "test:load": "node tests/load.test.js"
   },
   "keywords": [
     "gdg",

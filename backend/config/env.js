@@ -37,7 +37,17 @@ export const env = {
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH,
 
   allowInsecureDevLogin: bool(process.env.AUTH_ALLOW_INSECURE_DEV_LOGIN, false),
-  maxViolations: int(process.env.MAX_VIOLATIONS, 4)
+  maxViolations: int(process.env.MAX_VIOLATIONS, 4),
+
+  /**
+   * Return stack traces in error responses. Defaults to on only for an explicit
+   * development NODE_ENV, and is forced off in production, so a deployment that
+   * never sets NODE_ENV still fails closed.
+   */
+  exposeStackTraces: bool(
+    process.env.EXPOSE_STACK_TRACES,
+    process.env.NODE_ENV === "development"
+  ) && process.env.NODE_ENV !== "production"
 }
 
 /**

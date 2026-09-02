@@ -7,7 +7,7 @@ import mongoose from "mongoose"
 import { env } from "./config/env.js"
 import userRoutes from "./routes/user.routes.js"
 import adminRoutes from "./routes/admin.routes.js"
-import { limitApi } from "./middlewares/rateLimit.middleware.js"
+import { limitIpBurst } from "./middlewares/rateLimit.middleware.js"
 import { enforceJson, hpp, sanitizeRequest } from "./middlewares/sanitize.middleware.js"
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js"
 
@@ -53,7 +53,7 @@ export const createApp = () => {
     next()
   })
 
-  app.get(["/api", "/api/health"], limitApi, (_req, res) => {
+  app.get(["/api", "/api/health"], limitIpBurst, (_req, res) => {
     const states = ["disconnected", "connected", "connecting", "disconnecting"]
     res.json({
       success: true,
@@ -65,8 +65,9 @@ export const createApp = () => {
     })
   })
 
-  app.use("/api/user", limitApi, userRoutes)
-  app.use("/api/admin", limitApi, adminRoutes)
+  // Per-IP backstop only; the real per-candidate limit lives inside the router.
+  app.use("/api/user", limitIpBurst, userRoutes)
+  app.use("/api/admin", limitIpBurst, adminRoutes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

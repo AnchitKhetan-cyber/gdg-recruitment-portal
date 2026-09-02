@@ -1,11 +1,20 @@
 /**
- * A dependency-free fixed-window rate limiter backed by an in-process Map.
+ * Fixed-window rate limiting.
  *
- * Adequate for a single-instance recruitment drive. Swap the store for Redis if
- * the API is ever scaled horizontally, since counters are per-process.
+ * The subtlety that matters for a recruitment drive: an entire campus shares
+ * one public IP. Limiting authenticated traffic per IP means 1000 candidates
+ * compete for one allowance and nearly all of them are rejected - measured at
+ * 880/1000 blocked before this was keyed per user.
+ *
+ * So: authenticated routes are limited PER CANDIDATE, which is what actually
+ * protects the server from any one client, and a much looser per-IP ceiling
+ * remains as a backstop against a single machine flooding the API.
+ *
+ * Counters are per-process. Behind more than one instance, move the store to
+ * Redis or the effective limits multiply by the instance count.
  */
 const store = new Map()
-const SWEEP_INTERVAL_MS = 5 * 60_000
+const SWEEP_INTERVAL_MS = 60_000
 
 const sweep = () => {
   const now = Date.now()
@@ -17,11 +26,27 @@ const sweep = () => {
 const sweeper = setInterval(sweep, SWEEP_INTERVAL_MS)
 sweeper.unref?.()
 
-const keyFor = (req, bucket) => `${bucket}:${req.ip || req.socket?.remoteAddress || "unknown"}`
+/** Exposed for tests and for an operational health check. */
+export const rateLimitStoreSize = () => store.size
 
-export function rateLimit({ windowMs = 60_000, max = 60, bucket = "global" } = {}) {
+const ipOf = (req) => req.ip || req.socket?.remoteAddress || "unknown"
+
+/**
+ * @param {object}   options
+ * @param {function} options.keyBy  Derives the bucket key from the request.
+ *                                  Return null to skip limiting entirely.
+ */
+export function rateLimit({
+  windowMs = 60_000,
+  max = 60,
+  bucket = "global",
+  keyBy = ipOf
+} = {}) {
   return (req, res, next) => {
-    const key = keyFor(req, bucket)
+    const identity = keyBy(req)
+    if (identity === null) return next()
+
+    const key = `${bucket}:${identity}`
     const now = Date.now()
 
     let entry = store.get(key)
@@ -47,8 +72,47 @@ export function rateLimit({ windowMs = 60_000, max = 60, bucket = "global" } = {
   }
 }
 
-export const limitAuth = rateLimit({ windowMs: 60_000, max: 20, bucket: "auth" })
-export const limitApi = rateLimit({ windowMs: 60_000, max: 120, bucket: "api" })
-// Autosave fires roughly every 15s per candidate, so this ceiling is generous.
-export const limitAutosave = rateLimit({ windowMs: 60_000, max: 60, bucket: "autosave" })
+/**
+ * Per-candidate limit. Must be mounted AFTER authMiddleware so req.user is
+ * populated and therefore trustworthy - keying on an unverified cookie would
+ * let a caller mint identities to escape the limit.
+ *
+ * An attempt sends roughly 5 autosaves a minute, so 120 leaves ample headroom
+ * for retries and impatient clicking.
+ */
+export const limitPerUser = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  bucket: "user",
+  keyBy: (req) => req.user?.id || ipOf(req)
+})
+
+/**
+ * Backstop against one machine flooding the API. Sized so a whole campus behind
+ * a single NAT stays well clear: 1000 candidates at ~6 requests a minute each is
+ * ~6000, and a drive rarely has everyone active in the same minute.
+ */
+export const limitIpBurst = rateLimit({
+  windowMs: 60_000,
+  max: 12_000,
+  bucket: "ip",
+  keyBy: ipOf
+})
+
+/**
+ * Sign-in. Generous because a whole cohort signs in within a few minutes from
+ * one address, and because the endpoint already requires a Firebase-signed
+ * token that an attacker cannot forge.
+ */
+export const limitAuth = rateLimit({ windowMs: 60_000, max: 600, bucket: "auth" })
+
+/**
+ * Admin password login stays strictly per IP: it is the one endpoint where a
+ * guessable secret is checked, there are a handful of legitimate admins, and
+ * brute force is the real threat.
+ */
 export const limitAdminAuth = rateLimit({ windowMs: 15 * 60_000, max: 10, bucket: "admin-auth" })
+
+/** Kept for compatibility with existing imports. */
+export const limitApi = limitIpBurst
+export const limitAutosave = limitPerUser

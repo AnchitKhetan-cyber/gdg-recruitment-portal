@@ -57,10 +57,20 @@ const publicUser = (user) => ({
  * Exchanges a verified Google identity for a candidate session cookie.
  */
 export const firebaseAuth = asyncHandler(async (req, res) => {
-  const { uid, email, name } = req.firebaseUser
+  const { uid, email, name, emailVerified } = req.firebaseUser
 
   if (!email || !uid) {
     throw ApiError.badRequest("Google account did not provide an email address")
+  }
+
+  // Google always vouches for the address, but the Firebase project may later
+  // gain a provider that does not - email/password, for one. Without this
+  // check, anyone could register an unverified account using a shortlisted
+  // address and sit that candidate's test.
+  if (!emailVerified) {
+    throw ApiError.forbidden(
+      "Your email address is not verified. Sign in with the Google account you registered with."
+    )
   }
 
   const normalizedEmail = email.toLowerCase().trim()

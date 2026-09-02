@@ -12,6 +12,8 @@ build/
 .env
 .env.local
 .env.*.local
+.env.bak
+.env.backup
 !.env.example
 
 # firebase service account keys

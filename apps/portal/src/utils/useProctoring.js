@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { onFullscreenChange } from "./fullscreen"
 
 /**
  * Reports focus-loss events to the server while an attempt is live.
@@ -10,13 +11,15 @@ import { useEffect, useRef } from "react"
  */
 const COOLDOWN_MS = 1500
 
-export const useProctoring = ({ active, onViolation }) => {
+export const useProctoring = ({ active, onViolation, onFullscreenLost }) => {
   const lastReportRef = useRef(0)
   const onViolationRef = useRef(onViolation)
+  const onFullscreenLostRef = useRef(onFullscreenLost)
 
   useEffect(() => {
     onViolationRef.current = onViolation
-  }, [onViolation])
+    onFullscreenLostRef.current = onFullscreenLost
+  }, [onViolation, onFullscreenLost])
 
   useEffect(() => {
     if (!active) return undefined
@@ -47,6 +50,15 @@ export const useProctoring = ({ active, onViolation }) => {
       event.returnValue = ""
     }
 
+    // Leaving fullscreen gets its own channel: the gate has to go up
+    // immediately, and it is reported outside the shared cooldown so an exit
+    // is never swallowed by a blur that fired a moment earlier.
+    const unsubscribeFullscreen = onFullscreenChange((isActive) => {
+      if (isActive) return
+      onFullscreenLostRef.current?.()
+      onViolationRef.current?.("fullscreen-exit")
+    })
+
     document.addEventListener("visibilitychange", onVisibilityChange)
     window.addEventListener("blur", onBlur)
     document.addEventListener("copy", onCopyOrPaste)
@@ -55,6 +67,7 @@ export const useProctoring = ({ active, onViolation }) => {
     window.addEventListener("beforeunload", onBeforeUnload)
 
     return () => {
+      unsubscribeFullscreen()
       document.removeEventListener("visibilitychange", onVisibilityChange)
       window.removeEventListener("blur", onBlur)
       document.removeEventListener("copy", onCopyOrPaste)

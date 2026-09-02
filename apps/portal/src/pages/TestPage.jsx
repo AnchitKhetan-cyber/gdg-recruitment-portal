@@ -12,7 +12,14 @@ import QuestionCard from "../components/QuestionCard"
 import QuestionPalette from "../components/QuestionPalette"
 import SubmitDialog from "../components/SubmitDialog"
 import ProctorCamera from "../components/ProctorCamera"
+import FullscreenGate from "../components/FullscreenGate"
 import Loading from "../components/Loading"
+import {
+  enterFullscreen,
+  exitFullscreen,
+  isFullscreen,
+  isFullscreenSupported
+} from "../utils/fullscreen"
 
 const AUTOSAVE_INTERVAL_MS = 12_000
 
@@ -49,6 +56,12 @@ const TestPage = () => {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false)
   const [warning, setWarning] = useState(null)
   const expiredRef = useRef(false)
+
+  // Fullscreen is requested by the click on the instructions page, which
+  // carries the user gesture the browser demands. If it did not take, the gate
+  // goes up here and asks for a click of its own.
+  const [fullscreenOk, setFullscreenOk] = useState(() => isFullscreen())
+  const fullscreenUnsupported = !isFullscreenSupported()
 
   /* ------------------------------------------------------------- load */
 
@@ -135,7 +148,28 @@ const TestPage = () => {
     [reportViolation, navigate]
   )
 
-  useProctoring({ active: status === "ready", onViolation: handleViolation })
+  const handleFullscreenLost = useCallback(() => setFullscreenOk(false), [])
+
+  useProctoring({
+    active: status === "ready",
+    onViolation: handleViolation,
+    onFullscreenLost: handleFullscreenLost
+  })
+
+  const handleReturnToFullscreen = async () => {
+    if (fullscreenUnsupported) {
+      // Nothing to enter; let them sit the test with the exception recorded.
+      setFullscreenOk(true)
+      return
+    }
+    const entered = await enterFullscreen()
+    setFullscreenOk(entered)
+  }
+
+  // Release fullscreen once the attempt is over, so the success page is normal.
+  useEffect(() => {
+    if (status === "submitted") exitFullscreen()
+  }, [status])
 
   useEffect(() => {
     if (!warning) return undefined
@@ -348,6 +382,14 @@ const TestPage = () => {
           )}
         </aside>
       </main>
+
+      <FullscreenGate
+        open={status === "ready" && !fullscreenOk}
+        unsupported={fullscreenUnsupported}
+        violations={violations}
+        maxViolations={maxViolations}
+        onReturn={handleReturnToFullscreen}
+      />
 
       <SubmitDialog
         open={showSubmitDialog}

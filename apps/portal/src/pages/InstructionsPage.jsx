@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Camera,
   Clock,
+  Maximize,
   MonitorSmartphone,
   RefreshCw,
   ShieldAlert,
@@ -14,6 +15,7 @@ import { toast } from "sonner"
 import { api } from "../api/client"
 import { useAuthStore } from "../store/auth.store"
 import { signOutFromGoogle } from "../utils/firebase"
+import { enterFullscreen } from "../utils/fullscreen"
 import Navbar from "../components/Navbar"
 import { BrandRule } from "../components/Brand"
 
@@ -29,6 +31,12 @@ const RULES = [
     accent: "text-gdg-green",
     title: "Your answers are saved as you go",
     body: "Every answer is saved automatically. If your browser crashes, sign back in and you will resume the same paper exactly where you left it."
+  },
+  {
+    icon: Maximize,
+    accent: "text-gdg-red",
+    title: "The test runs in fullscreen",
+    body: "The paper opens in fullscreen. If you leave it, your questions are hidden until you return, the clock keeps running, and the exit is recorded."
   },
   {
     icon: ShieldAlert,
@@ -75,6 +83,11 @@ const InstructionsPage = () => {
     if (!agreed || isStarting) return
 
     setIsStarting(true)
+
+    // Must run inside the click handler: the browser only grants fullscreen
+    // from a user gesture, and it survives the client-side route change.
+    // A refusal is not fatal - the test page puts up its own gate.
+    await enterFullscreen()
 
     try {
       // Start the attempt here so the clock and the paper exist before the test

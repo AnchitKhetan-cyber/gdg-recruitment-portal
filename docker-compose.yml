@@ -1,0 +1,45 @@
+# Brings up MongoDB and the API together.
+#
+#   docker compose up -d          start
+#   docker compose logs -f api    follow the API log
+#   docker compose down           stop (data survives in the mongo-data volume)
+#   docker compose down -v        stop and wipe the database
+#
+# The two front-ends are run with `npm run dev:portal` / `npm run dev:admin`,
+# or built with `npm run build` and served as static files.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: gdg-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build:
+      context: ./backend
+    container_name: gdg-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      MONGO_URI: mongodb://mongo:27017/gdg_recruitment
+    env_file:
+      - ./backend/.env
+
+volumes:
+  mongo-data:

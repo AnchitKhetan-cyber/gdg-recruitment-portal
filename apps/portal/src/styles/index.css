@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/*
+ * GDG design tokens.
+ *
+ * The four Google brand colours are used as accents only - the surface stays
+ * neutral so a page full of options never competes with the brand for attention.
+ */
+@theme {
+  --color-gdg-blue: #4285f4;
+  --color-gdg-blue-dark: #1a73e8;
+  --color-gdg-red: #ea4335;
+  --color-gdg-yellow: #fbbc04;
+  --color-gdg-green: #34a853;
+
+  --color-ink: #1f1f1f;
+  --color-ink-muted: #5f6368;
+  --color-ink-subtle: #80868b;
+  --color-line: #dadce0;
+  --color-surface: #ffffff;
+  --color-canvas: #f8f9fa;
+
+  --font-sans: "Google Sans Text", "Google Sans", Inter, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-display: "Google Sans", "Google Sans Text", Inter, system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 1rem;
+
+  --shadow-card: 0 1px 2px rgba(60, 64, 67, 0.08), 0 4px 12px rgba(60, 64, 67, 0.08);
+  --shadow-lift: 0 2px 6px rgba(60, 64, 67, 0.12), 0 12px 28px rgba(60, 64, 67, 0.14);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  /* A single visible focus treatment across every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--color-gdg-blue);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-gdg-blue) 22%, transparent);
+  }
+}
+
+@layer components {
+  .gdg-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The four-colour hairline that reads instantly as Google/GDG. */
+  .gdg-rule {
+    background: linear-gradient(
+      90deg,
+      var(--color-gdg-blue) 0% 25%,
+      var(--color-gdg-red) 25% 50%,
+      var(--color-gdg-yellow) 50% 75%,
+      var(--color-gdg-green) 75% 100%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

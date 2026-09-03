@@ -6,12 +6,16 @@ import SystemCheckPage from "./pages/SystemCheckPage"
 import TestPage from "./pages/TestPage"
 import SubmittedPage from "./pages/SubmittedPage"
 import ProtectedRoute from "./components/ProtectedRoute"
+import DesktopOnly from "./components/DesktopOnly"
 
+// The assessment is desktop/laptop only. DesktopOnly wraps every route, so a
+// phone or tablet sees the "use a laptop" screen from the very first page.
 const App = () => (
-  <BrowserRouter>
-    <Toaster position="top-center" richColors closeButton />
+  <DesktopOnly>
+    <BrowserRouter>
+      <Toaster position="top-center" richColors closeButton />
 
-    <Routes>
+      <Routes>
       <Route path="/" element={<SignInPage />} />
 
       <Route
@@ -44,9 +48,10 @@ const App = () => (
       {/* Reached after the session is closed, so this route is deliberately open. */}
       <Route path="/submitted" element={<SubmittedPage />} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  </BrowserRouter>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  </DesktopOnly>
 )
 
 export default App

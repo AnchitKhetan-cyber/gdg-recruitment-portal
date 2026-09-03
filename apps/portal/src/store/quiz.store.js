@@ -1,6 +1,8 @@
 import { create } from "zustand"
 import { useShallow } from "zustand/react/shallow"
-import { api } from "../api/client"
+// Extension is explicit so this module resolves under plain Node too, which is
+// how quiz.store.test.mjs runs it without a bundler.
+import { api } from "../api/client.js"
 
 /**
  * The whole attempt state machine.
@@ -110,13 +112,25 @@ export const useQuizStore = create((set, get) => ({
 
   /** Autosave. Returns true when the server ended the attempt for us. */
   save: async () => {
-    const { status, pendingSave, buildResponses } = get()
+    const { status, pendingSave, answers, buildResponses } = get()
     if (status !== "ready" || !pendingSave) return false
+
+    // Remember exactly which answers this request carries. selectOption always
+    // replaces the answers object, so identity is a reliable "unchanged" test.
+    const sent = answers
 
     try {
       const data = await api.saveProgress(buildResponses())
 
-      set({ pendingSave: false, lastSavedAt: Date.now() })
+      // Only declare the work saved if nothing changed while the request was in
+      // flight. Clearing the flag unconditionally used to strand an answer given
+      // during that window: the next tick skipped it, and the UI said "All
+      // answers saved" while the server had never seen it.
+      const unchanged = get().answers === sent
+      set({
+        lastSavedAt: unchanged ? Date.now() : get().lastSavedAt,
+        pendingSave: !unchanged
+      })
 
       if (data.submitted) {
         set({ status: "submitted", submission: data, timeRemaining: 0 })
@@ -127,8 +141,8 @@ export const useQuizStore = create((set, get) => ({
       if (typeof data.timeRemaining === "number") set({ timeRemaining: data.timeRemaining })
       return false
     } catch {
-      // A failed autosave is not fatal - the answers stay in memory and the
-      // next tick will retry. Only a submit failure is surfaced to the user.
+      // A failed autosave is not fatal - the answers stay in memory, pendingSave
+      // stays set, and the next tick retries. Only a submit failure is surfaced.
       return false
     }
   },

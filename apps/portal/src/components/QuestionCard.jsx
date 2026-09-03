@@ -1,5 +1,5 @@
 import { motion } from "framer-motion"
-import { Check } from "lucide-react"
+import { Check, Undo2 } from "lucide-react"
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"]
 
@@ -11,6 +11,8 @@ const LETTERS = ["A", "B", "C", "D", "E", "F"]
  */
 const QuestionCard = ({ question, index, total, selectedOption, onSelect }) => {
   if (!question) return null
+
+  const hasAnswer = selectedOption !== undefined && selectedOption >= 0
 
   return (
     <motion.article
@@ -62,13 +64,26 @@ const QuestionCard = ({ question, index, total, selectedOption, onSelect }) => {
                       : "border-line bg-surface hover:border-gdg-blue/40 hover:bg-canvas"
                   }`}
                 >
+                  {/*
+                    Selecting and clearing need two handlers, because a radio
+                    that is already checked fires `click` but no `change` - so
+                    an onChange-only control can never be cleared. Browsers
+                    fire `click` before `change`, and React does not re-render
+                    between them, so `isSelected` is stable across the pair and
+                    exactly one branch runs per interaction.
+                  */}
                   <input
                     type="radio"
                     id={id}
                     name={`question-${question.id}`}
                     className="sr-only"
                     checked={isSelected}
-                    onChange={() => onSelect(optionIndex)}
+                    onChange={() => {
+                      if (!isSelected) onSelect(optionIndex)
+                    }}
+                    onClick={() => {
+                      if (isSelected) onSelect(optionIndex)
+                    }}
                   />
 
                   <span
@@ -95,11 +110,25 @@ const QuestionCard = ({ question, index, total, selectedOption, onSelect }) => {
           </div>
         </fieldset>
 
-        <p className="mt-4 text-xs text-ink-subtle">
-          {selectedOption === undefined || selectedOption < 0
-            ? "Not answered yet."
-            : "Click your selected option again to clear it."}
-        </p>
+        <div className="mt-4 flex items-center gap-3">
+          {hasAnswer ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onSelect(selectedOption)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-gdg-red/40 hover:bg-gdg-red/[0.06] hover:text-gdg-red"
+              >
+                <Undo2 className="size-3.5" aria-hidden="true" />
+                Clear answer
+              </button>
+              <span className="text-xs text-ink-subtle">
+                Or click the selected option again.
+              </span>
+            </>
+          ) : (
+            <p className="text-xs text-ink-subtle">Not answered yet.</p>
+          )}
+        </div>
       </div>
     </motion.article>
   )

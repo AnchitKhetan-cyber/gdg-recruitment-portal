@@ -15,9 +15,10 @@
     "build": "npm run build --prefix apps/portal && npm run build --prefix apps/admin",
     "seed": "npm run seed --prefix backend",
     "demo": "npm run demo --prefix backend",
-    "test": "npm run test --prefix backend",
+    "test": "npm run test --prefix backend && npm run test --prefix apps/portal",
     "hash-admin-password": "npm run hash-admin-password --prefix backend",
-    "lint": "npm run lint --prefix apps/portal && npm run lint --prefix apps/admin"
+    "lint": "npm run lint --prefix apps/portal && npm run lint --prefix apps/admin",
+    "test:load": "npm run test:load --prefix backend"
   },
   "license": "MIT"
 }

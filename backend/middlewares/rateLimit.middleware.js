@@ -88,13 +88,23 @@ export const limitPerUser = rateLimit({
 })
 
 /**
- * Backstop against one machine flooding the API. Sized so a whole campus behind
- * a single NAT stays well clear: 1000 candidates at ~6 requests a minute each is
- * ~6000, and a drive rarely has everyone active in the same minute.
+ * Backstop against one machine flooding the API.
+ *
+ * A whole campus sits behind one NAT IP, so this ceiling is the entire
+ * cohort's shared budget - not one person's. It must clear peak aggregate
+ * load with room to spare: ~3000 candidates, each ~10 requests/min (five
+ * autosaves plus navigation), then a submit clump at the deadline, is on the
+ * order of 30-40k/min. 60k leaves headroom for that while still cutting off a
+ * runaway script. The per-candidate limit above is what actually contains one
+ * abuser; this only stops a flood.
+ *
+ * Configurable via IP_BURST_MAX so a bigger drive can raise it without a code
+ * change. Behind more than one API instance, divide by the instance count or
+ * move the store to Redis.
  */
 export const limitIpBurst = rateLimit({
   windowMs: 60_000,
-  max: 12_000,
+  max: Number.parseInt(process.env.IP_BURST_MAX, 10) || 60_000,
   bucket: "ip",
   keyBy: ipOf
 })

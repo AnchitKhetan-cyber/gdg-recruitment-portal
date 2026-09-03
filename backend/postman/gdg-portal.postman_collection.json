@@ -1,0 +1,104 @@
+{
+  "info": {
+    "name": "GDG Portal - candidate run (2000)",
+    "description": "Drives the full candidate flow (sign in -> start -> submit) once per row in candidates-2000.csv.\n\nREQUIRES the API running locally with AUTH_ALLOW_INSECURE_DEV_LOGIN=true, because Postman cannot mint a real Google ID token. The pre-request script builds an UNSIGNED dev token, which the server only accepts when that flag is on. Never point this at production.\n\nRun: Collection Runner -> select this collection -> Data file candidates-2000.csv -> Iterations 2000.\n\nNote: Collection Runner executes iterations sequentially, so this proves the flow works 2000 times, not 2000 at once. For true concurrency/load use `npm run test:load -- --users 2000`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "devToken", "value": "" },
+    { "key": "responses", "value": "[]" }
+  ],
+  "item": [
+    {
+      "name": "1. Sign in (dev token)",
+      "event": [
+        {
+          "listen": "prerequisite",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Build an unsigned JWT the dev-login path accepts. Base64url of the",
+              "// header and payload; the signature segment is a literal 'dev'.",
+              "function b64url(obj) {",
+              "  var words = CryptoJS.enc.Utf8.parse(JSON.stringify(obj));",
+              "  return CryptoJS.enc.Base64.stringify(words)",
+              "    .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+              "}",
+              "var email = pm.iterationData.get('email') || ('loadtest' + Date.now() + '@thapar.edu');",
+              "var name = pm.iterationData.get('name') || 'Load Test';",
+              "var header = b64url({ alg: 'none', typ: 'JWT' });",
+              "var payload = b64url({ user_id: email, sub: email, email: email, name: name, email_verified: true });",
+              "pm.collectionVariables.set('devToken', header + '.' + payload + '.dev');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('signed in', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{devToken}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{baseUrl}}/api/user/firebase-auth", "host": ["{{baseUrl}}"], "path": ["api", "user", "firebase-auth"] }
+      }
+    },
+    {
+      "name": "2. Start quiz",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('quiz assigned', function () { pm.response.to.have.status(200); });",
+              "var data = pm.response.json();",
+              "// Capture the assigned question ids and answer every one with option 0,",
+              "// so the submit step has a valid, complete payload.",
+              "var responses = (data.quiz.questions || []).map(function (q) {",
+              "  return { questionId: q.id, selectedOption: 0 };",
+              "});",
+              "pm.collectionVariables.set('responses', JSON.stringify(responses));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{baseUrl}}/api/user/start-quiz", "host": ["{{baseUrl}}"], "path": ["api", "user", "start-quiz"] }
+      }
+    },
+    {
+      "name": "3. Submit quiz",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('submitted', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"responses\": {{responses}}}" },
+        "url": { "raw": "{{baseUrl}}/api/user/submit-quiz", "host": ["{{baseUrl}}"], "path": ["api", "user", "submit-quiz"] }
+      }
+    }
+  ]
+}

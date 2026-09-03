@@ -9,7 +9,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/results", label: "Results", icon: UserCheck },
   { to: "/quizzes", label: "Tests", icon: FileQuestion },
-  { to: "/candidates", label: "Whitelist", icon: Users }
+  { to: "/candidates", label: "Exceptions", icon: Users }
 ]
 
 /** Shell for every authenticated admin page: sidebar on desktop, drawer on mobile. */

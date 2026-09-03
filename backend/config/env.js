@@ -32,6 +32,29 @@ export const env = {
     "http://localhost:5174"
   ]),
 
+  /**
+   * Hostname suffixes accepted in addition to the exact origins above.
+   * Tunnel providers mint a new hostname on every restart, so pinning exact
+   * URLs there means re-editing .env constantly. Empty by default - a
+   * production deployment should list its real origins and nothing else.
+   */
+  corsOriginSuffixes: list(process.env.CORS_ORIGIN_SUFFIXES, []),
+
+  /**
+   * Email domains eligible to sit the test, e.g. "thapar.edu".
+   *
+   * When set, anyone signing in with an address in these domains is admitted -
+   * no per-candidate whitelisting needed. Subdomains count, so "thapar.edu"
+   * also admits "student.thapar.edu".
+   *
+   * The Allowed collection still applies on top, as an exceptions list for
+   * addresses outside these domains (guests, organisers testing with a
+   * personal account). Leave this empty to fall back to whitelist-only.
+   */
+  allowedEmailDomains: list(process.env.ALLOWED_EMAIL_DOMAINS, []).map((d) =>
+    d.toLowerCase().replace(/^@/, "")
+  ),
+
   jwtSecret: process.env.JWT_SECRET,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH,

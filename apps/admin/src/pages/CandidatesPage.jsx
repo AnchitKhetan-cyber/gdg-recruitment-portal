@@ -148,16 +148,19 @@ const CandidatesPage = () => {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Whitelist</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Exceptions</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Only these {total} email address{total === 1 ? "" : "es"} can sign in and sit the test.
+          Anyone with a <span className="font-medium text-ink">@thapar.edu</span> address can sign
+          in without being listed here. Use this list to admit {total} address
+          {total === 1 ? "" : "es"} from outside that domain &mdash; guests, or an organiser testing
+          with a personal account.
         </p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Add one */}
         <Card className="p-5">
-          <h2 className="text-sm font-semibold text-ink">Add a candidate</h2>
+          <h2 className="text-sm font-semibold text-ink">Admit an outside address</h2>
 
           <form onSubmit={handleAdd} className="mt-4 grid gap-3 sm:grid-cols-2">
             <Input
@@ -273,22 +276,22 @@ const CandidatesPage = () => {
                 setPage(1)
               }}
               placeholder="Search name, email, or phone"
-              aria-label="Search the whitelist"
+              aria-label="Search the exceptions list"
               className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none transition focus:border-gdg-blue"
             />
           </div>
         </div>
 
         {loading && !entries.length ? (
-          <Spinner label="Loading whitelist" />
+          <Spinner label="Loading exceptions" />
         ) : entries.length === 0 ? (
           <EmptyState
             icon={Users}
-            title={search ? "No matches" : "The whitelist is empty"}
+            title={search ? "No matches" : "No exceptions yet"}
             body={
               search
                 ? "No candidate matches that search."
-                : "Add candidates above, or import them from a CSV, before the drive opens."
+                : "Thapar addresses do not need listing. Add one here only to admit someone from outside the domain."
             }
           />
         ) : (

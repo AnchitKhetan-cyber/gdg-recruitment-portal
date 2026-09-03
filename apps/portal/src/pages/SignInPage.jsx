@@ -67,8 +67,8 @@ const SignInPage = () => {
             </div>
 
             <p className="mt-6 text-[15px] leading-relaxed text-ink-muted">
-              Sign in with the Google account you used to register. Only shortlisted addresses can
-              enter the assessment.
+              Sign in with your <span className="font-medium text-ink">@thapar.edu</span> Google
+              account. Every Thapar student is eligible &mdash; no registration needed.
             </p>
 
             {error && (

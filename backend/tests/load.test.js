@@ -24,6 +24,9 @@ import jwt from "jsonwebtoken"
 process.env.NODE_ENV = "test"
 process.env.JWT_SECRET = process.env.JWT_SECRET || "load-test-secret-long-enough"
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "load-test-admin"
+// Don't let the real backend/.env's password hash or domain rule leak in.
+process.env.ADMIN_PASSWORD_HASH = ""
+process.env.ALLOWED_EMAIL_DOMAINS = ""
 
 const arg = (name, fallback) => {
   const index = process.argv.indexOf(`--${name}`)

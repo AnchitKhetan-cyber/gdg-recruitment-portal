@@ -30,9 +30,32 @@ export const createApp = () => {
       origin(origin, callback) {
         // Same-origin and non-browser callers (curl, health checks) send no Origin.
         if (!origin) return callback(null, true)
+
         const normalized = origin.replace(/\/$/, "")
         if (env.corsOrigins.includes(normalized)) return callback(null, true)
-        return callback(new Error(`Origin not allowed by CORS: ${origin}`))
+
+        // Suffix matches let a tunnel through without pinning the exact
+        // hostname, which quick tunnels regenerate on every restart.
+        const host = (() => {
+          try {
+            return new URL(normalized).hostname
+          } catch {
+            return ""
+          }
+        })()
+
+        if (env.corsOriginSuffixes.some((suffix) => host.endsWith(suffix))) {
+          return callback(null, true)
+        }
+
+        // A blocked origin is a client problem, not a server fault. Without an
+        // explicit status this surfaced as a 500 "Internal server error", which
+        // is both wrong and actively misleading to debug.
+        const error = new Error(
+          `Origin not allowed: ${origin}. Add it to CORS_ORIGINS in backend/.env.`
+        )
+        error.statusCode = 403
+        return callback(error)
       },
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],

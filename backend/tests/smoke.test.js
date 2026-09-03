@@ -17,6 +17,10 @@ import jwt from "jsonwebtoken"
 process.env.NODE_ENV = "test"
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-that-is-long-enough"
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "test-admin-password"
+// The suite exercises the plaintext-password path and drives domains itself, so
+// clear anything the real backend/.env would otherwise leak in through dotenv.
+process.env.ADMIN_PASSWORD_HASH = ""
+process.env.ALLOWED_EMAIL_DOMAINS = ""
 process.env.MAX_VIOLATIONS = "3"
 
 const { createApp } = await import("../app.js")
@@ -164,6 +168,35 @@ await test("an admin token cannot be used as a candidate session", async () => {
 await test("a non-whitelisted email cannot be signed in", async () => {
   const allowed = await Allowed.findOne({ email: "nobody@example.com" })
   assert.equal(allowed, null)
+})
+
+section("Eligibility by email domain")
+
+// The controller reads env at call time, so the suite can drive both modes.
+const { isEligibleForTesting } = await import("../controllers/user.controllers.js")
+
+await test("any address in an eligible domain is admitted without whitelisting", () => {
+  process.env.ALLOWED_EMAIL_DOMAINS = "thapar.edu"
+  assert.equal(isEligibleForTesting("someone@thapar.edu"), true)
+  assert.equal(isEligibleForTesting("SOMEONE@thapar.edu".toLowerCase()), true)
+})
+
+await test("subdomains of an eligible domain also count", () => {
+  process.env.ALLOWED_EMAIL_DOMAINS = "thapar.edu"
+  assert.equal(isEligibleForTesting("roll123@student.thapar.edu"), true)
+})
+
+await test("a lookalike domain is rejected", () => {
+  process.env.ALLOWED_EMAIL_DOMAINS = "thapar.edu"
+  // The suffix check must not admit notthapar.edu or thapar.edu.evil.com.
+  assert.equal(isEligibleForTesting("attacker@notthapar.edu"), false)
+  assert.equal(isEligibleForTesting("attacker@thapar.edu.evil.com"), false)
+  assert.equal(isEligibleForTesting("attacker@gmail.com"), false)
+})
+
+await test("with no domains configured, nothing is eligible by domain", () => {
+  process.env.ALLOWED_EMAIL_DOMAINS = ""
+  assert.equal(isEligibleForTesting("someone@thapar.edu"), false)
 })
 
 section("Candidate attempt lifecycle")

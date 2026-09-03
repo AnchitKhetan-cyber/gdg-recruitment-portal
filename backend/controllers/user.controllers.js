@@ -42,6 +42,45 @@ const violationSchema = z.object({
   confidence: z.number().min(0).max(1).optional()
 })
 
+/**
+ * True when the address sits in one of the eligible domains.
+ * A configured "thapar.edu" also admits "student.thapar.edu".
+ */
+/**
+ * Whether an email is eligible to sit the test by its domain.
+ *
+ * Reads ALLOWED_EMAIL_DOMAINS live rather than the boot-time snapshot, so a
+ * config change - or a test toggling the value - takes effect immediately.
+ * The suffix check requires a dot boundary, so "thapar.edu" admits
+ * "x@student.thapar.edu" but never "x@notthapar.edu" or "x@thapar.edu.evil.com".
+ * Exported under a test-facing name.
+ */
+export const isEligibleForTesting = (email) => {
+  const domains = (process.env.ALLOWED_EMAIL_DOMAINS || "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase().replace(/^@/, "").replace(/\/$/, ""))
+    .filter(Boolean)
+
+  if (!domains.length) return false
+
+  const domain = (email.split("@")[1] || "").toLowerCase()
+  if (!domain) return false
+
+  return domains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`))
+}
+
+const isDomainEligible = isEligibleForTesting
+
+/** Explains the rejection in terms the candidate can act on. */
+const describeIneligible = () => {
+  if (!env.allowedEmailDomains.length) {
+    return "This email is not on the shortlist. Use the address you registered with."
+  }
+
+  const domains = env.allowedEmailDomains.map((d) => `@${d}`).join(" or ")
+  return `Sign in with your ${domains} account. Personal addresses are not eligible for this round.`
+}
+
 /** Shape returned to the portal for the signed-in candidate. */
 const publicUser = (user) => ({
   uid: user.firebaseUid,
@@ -75,11 +114,13 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 
   const normalizedEmail = email.toLowerCase().trim()
 
+  // Eligibility is by email domain, with the Allowed collection acting as an
+  // exceptions list for addresses outside those domains.
   const allowed = await Allowed.findOne({ email: normalizedEmail }).lean()
-  if (!allowed) {
-    throw ApiError.forbidden(
-      "This email is not on the shortlist. Use the address you registered with."
-    )
+  const eligible = isDomainEligible(normalizedEmail) || Boolean(allowed)
+
+  if (!eligible) {
+    throw ApiError.forbidden(describeIneligible())
   }
 
   let user = await User.findOne({
@@ -92,7 +133,9 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
       user.firebaseUid = uid
       dirty = true
     }
-    if (!user.phone && allowed.phone) {
+    // `allowed` is null for a domain-eligible candidate, who has no whitelist
+    // entry at all - so every read of it has to tolerate that.
+    if (!user.phone && allowed?.phone) {
       user.phone = allowed.phone
       dirty = true
     }
@@ -100,9 +143,11 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
   } else {
     user = await User.create({
       firebaseUid: uid,
-      name: allowed.name || name || normalizedEmail.split("@")[0],
+      // Prefer the organiser-entered name when there is one, then the name
+      // Google gives us, and fall back to the local part of the address.
+      name: allowed?.name || name || normalizedEmail.split("@")[0],
       email: normalizedEmail,
-      phone: allowed.phone || undefined
+      phone: allowed?.phone || undefined
     })
   }
 

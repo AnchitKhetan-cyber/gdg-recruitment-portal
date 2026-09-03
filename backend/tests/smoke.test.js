@@ -611,6 +611,45 @@ await test("Mongo operator injection is stripped from the body", async () => {
   assert.equal(status, 400, "the $ne operator should be stripped, leaving an invalid body")
 })
 
+await test("a duplicated query parameter is collapsed, not passed as an array", async () => {
+  // Without normalizeQuery this reached the controller as ["a","b"] and threw
+  // a TypeError on .trim(), returning 500.
+  const { status } = await admin("/api/admin/allowed-users?search=meera&search=arjun")
+  assert.equal(status, 200)
+
+  const results = await admin("/api/admin/results?search=aarav&search=diya&status=all")
+  assert.equal(results.status, 200)
+})
+
+await test("operator keys in the query string are stripped", async () => {
+  const { status, data } = await admin("/api/admin/results?$where=1&search=aarav")
+  assert.equal(status, 200)
+  assert.ok(Array.isArray(data.users))
+})
+
+await test("a paging parameter sent twice does not break paging", async () => {
+  const { status, data } = await admin("/api/admin/results?page=1&page=99&limit=5")
+  assert.equal(status, 200)
+  assert.equal(data.page, 1, "the first value should win")
+})
+
+await test("the live test cannot be deactivated out from under candidates", async () => {
+  const list = await admin("/api/admin/quizzes")
+  const live = list.data.quizzes.find((q) => q.isActive)
+  assert.ok(live, "a live quiz is expected at this point")
+
+  const { status, data } = await admin(`/api/admin/quizzes/${live._id}`, {
+    method: "PUT",
+    body: { isActive: false }
+  })
+
+  assert.equal(status, 400)
+  assert.match(data.message, /Cannot deactivate the live test/)
+
+  const stillActive = await Quiz.countDocuments({ isActive: true })
+  assert.equal(stillActive, 1, "there must always be exactly one live test")
+})
+
 await test("a non-JSON content type is refused on a POST", async () => {
   const response = await fetch(`${base}/api/admin/login`, {
     method: "POST",

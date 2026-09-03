@@ -20,9 +20,15 @@ function sanitizeInPlace(node, depth = 0) {
 
 export function sanitizeRequest(req, _res, next) {
   sanitizeInPlace(req.body)
-  sanitizeInPlace(req.params)
-  // Express 5 exposes req.query through a getter, so mutate rather than reassign.
+
+  // req.params is intentionally not touched here: this middleware is mounted
+  // app-wide, before any router has matched, so req.params is always empty at
+  // this point. Route params are plain strings from the URL and cannot carry
+  // operator keys or nested objects, so there is nothing to strip.
+
+  // Query is handled by normalizeQuery below, which must run first.
   sanitizeInPlace(req.query)
+
   next()
 }
 
@@ -39,11 +45,40 @@ export function enforceJson(req, res, next) {
   next()
 }
 
-/** Collapses duplicated query parameters (HTTP parameter pollution). */
-export function hpp(req, _res, next) {
-  for (const key of Object.keys(req.query || {})) {
-    const value = req.query[key]
-    if (Array.isArray(value)) req.query[key] = value[0]
+/**
+ * Materialises req.query as a plain own property, collapsing duplicated
+ * parameters on the way.
+ *
+ * Express 5 exposes req.query as a prototype GETTER that re-parses the query
+ * string on every access, so mutating what it returns is silently discarded -
+ * the previous version of this middleware, and the query branch of
+ * sanitizeRequest, both did nothing at all. Defining an own property shadows
+ * the getter, so later reads see the cleaned object and downstream
+ * sanitisation actually sticks.
+ *
+ * Collapsing duplicates also keeps `?search=a&search=b` from handing a
+ * controller an array where it expects a string.
+ *
+ * Must be mounted BEFORE sanitizeRequest.
+ */
+export function normalizeQuery(req, _res, next) {
+  const source = req.query || {}
+  const normalized = {}
+
+  for (const key of Object.keys(source)) {
+    const value = source[key]
+    normalized[key] = Array.isArray(value) ? value[0] : value
   }
+
+  Object.defineProperty(req, "query", {
+    value: normalized,
+    writable: true,
+    configurable: true,
+    enumerable: true
+  })
+
   next()
 }
+
+/** Previous name, kept so existing imports keep working. */
+export const hpp = normalizeQuery

@@ -120,6 +120,15 @@ export const updateQuiz = asyncHandler(async (req, res) => {
 
   if (payload.questions) assertAnswerIndexes(payload.questions)
 
+  // Standing the live test down here would leave the drive with no active
+  // quiz and every candidate unable to start. Promoting a different one is
+  // the only safe way to change which test is live.
+  if (payload.isActive === false && quiz.isActive) {
+    throw ApiError.badRequest(
+      "Cannot deactivate the live test. Activate a different test instead, which stands this one down."
+    )
+  }
+
   Object.assign(quiz, payload)
 
   const poolSize = quiz.questions.length
@@ -177,7 +186,10 @@ const bulkAllowedSchema = z.object({
 export const getAllowedUsers = asyncHandler(async (req, res) => {
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
   const limit = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 50))
-  const search = (req.query.search || "").trim()
+  // String() rather than a bare .trim(): normalizeQuery collapses duplicated
+  // parameters, but coercing here means a controller can never be one odd
+  // query string away from a 500.
+  const search = String(req.query.search || "").trim()
 
   const query = search
     ? {

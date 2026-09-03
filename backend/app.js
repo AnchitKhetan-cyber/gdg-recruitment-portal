@@ -8,7 +8,7 @@ import { env } from "./config/env.js"
 import userRoutes from "./routes/user.routes.js"
 import adminRoutes from "./routes/admin.routes.js"
 import { limitIpBurst } from "./middlewares/rateLimit.middleware.js"
-import { enforceJson, hpp, sanitizeRequest } from "./middlewares/sanitize.middleware.js"
+import { enforceJson, normalizeQuery, sanitizeRequest } from "./middlewares/sanitize.middleware.js"
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js"
 
 export const createApp = () => {
@@ -42,7 +42,8 @@ export const createApp = () => {
 
   app.use(express.json({ limit: "512kb" }))
   app.use(cookieParser())
-  app.use(hpp)
+  // Must precede sanitizeRequest: it turns req.query into a real own property.
+  app.use(normalizeQuery)
   app.use(sanitizeRequest)
   app.use(enforceJson)
 

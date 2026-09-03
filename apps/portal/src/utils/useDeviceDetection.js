@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { isDetectionEnabled } from "./proctorMode"
 
 /**
  * Watches the candidate's webcam for phones, screens, and extra people.
@@ -58,6 +59,14 @@ export const useDeviceDetection = ({ active, videoRef, onFlag }) => {
   // Load the model lazily so it never delays sign-in or the first question.
   useEffect(() => {
     if (!active) return undefined
+
+    // Mock mode: the camera is live and the candidate can see it, but nothing
+    // is inspected. TensorFlow is never imported, so its ~1.1MB is never
+    // fetched and no CPU is spent on a machine already running a timed test.
+    if (!isDetectionEnabled) {
+      setState("mock")
+      return undefined
+    }
 
     let cancelled = false
 

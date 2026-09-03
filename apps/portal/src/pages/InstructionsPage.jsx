@@ -11,11 +11,9 @@ import {
   ShieldAlert,
   Wifi
 } from "lucide-react"
-import { toast } from "sonner"
 import { api } from "../api/client"
 import { useAuthStore } from "../store/auth.store"
 import { signOutFromGoogle } from "../utils/firebase"
-import { enterFullscreen } from "../utils/fullscreen"
 import Navbar from "../components/Navbar"
 import { BrandRule } from "../components/Brand"
 
@@ -47,8 +45,8 @@ const RULES = [
   {
     icon: Camera,
     accent: "text-gdg-yellow",
-    title: "Your camera stays on",
-    body: "Your webcam is checked in your browser for phones and for other people in the room. The video is analysed on your device and is never recorded or uploaded — only a note of what was seen is sent, for a human to review."
+    title: "Camera and microphone stay on",
+    body: "Your camera and microphone stay on for the duration of the test. Both run locally on your device — nothing is recorded, uploaded, or listened to."
   },
   {
     icon: Wifi,
@@ -79,29 +77,14 @@ const InstructionsPage = () => {
     navigate("/", { replace: true })
   }
 
-  const handleBegin = async () => {
+  // Deliberately does NOT start the attempt. The system check runs first, so
+  // the camera prompt and fullscreen switch happen while no clock is running
+  // and no proctoring is active - otherwise granting permission steals focus
+  // and is logged as a violation the candidate never earned.
+  const handleBegin = () => {
     if (!agreed || isStarting) return
-
     setIsStarting(true)
-
-    // Must run inside the click handler: the browser only grants fullscreen
-    // from a user gesture, and it survives the client-side route change.
-    // A refusal is not fatal - the test page puts up its own gate.
-    await enterFullscreen()
-
-    try {
-      // Start the attempt here so the clock and the paper exist before the test
-      // screen mounts - the test page then only ever resumes.
-      await api.startQuiz()
-      navigate("/test", { replace: true })
-    } catch (error) {
-      if (/already submitted/i.test(error.message)) {
-        navigate("/submitted", { replace: true })
-        return
-      }
-      toast.error(error.message)
-      setIsStarting(false)
-    }
+    navigate("/system-check")
   }
 
   const isResuming = user.hasStarted && !user.hasSubmitted
@@ -172,7 +155,7 @@ const InstructionsPage = () => {
             disabled={!agreed || isStarting}
             className="group flex shrink-0 items-center justify-center gap-2 rounded-full bg-gdg-blue px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-gdg-blue-dark disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-subtle"
           >
-            {isStarting ? "Opening the paper..." : isResuming ? "Resume test" : "Begin test"}
+            {isStarting ? "Opening..." : isResuming ? "Resume test" : "Begin test"}
             <ArrowRight
               className="size-4 transition-transform group-hover:translate-x-0.5"
               aria-hidden="true"

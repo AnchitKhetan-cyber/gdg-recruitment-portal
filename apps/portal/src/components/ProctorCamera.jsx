@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Camera, CameraOff, ChevronDown, ScanEye } from "lucide-react"
+import { AlertTriangle, Camera, CameraOff, ChevronDown, Mic, ScanEye } from "lucide-react"
 import { useDeviceDetection } from "../utils/useDeviceDetection"
 
 /**
@@ -25,9 +25,12 @@ const ProctorCamera = ({ active = true, onFlag }) => {
       }
 
       try {
+        // Audio is requested too, so the microphone light stays on for the
+        // duration. Permission was already granted on the system-check screen,
+        // so this does not prompt again. Nothing is recorded.
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 320, height: 240, facingMode: "user" },
-          audio: false
+          audio: true
         })
 
         if (cancelled) {
@@ -130,8 +133,17 @@ const ProctorCamera = ({ active = true, onFlag }) => {
             </p>
           )}
 
+          {detection.state === "mock" && (
+            <p className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
+              <Mic className="size-3 text-gdg-green" aria-hidden="true" />
+              Camera and microphone are on
+            </p>
+          )}
+
           <p className="mt-1 text-[11px] leading-snug text-ink-subtle">
-            Analysed on your device. No video is recorded or uploaded.
+            {detection.state === "mock"
+              ? "Nothing is recorded or uploaded."
+              : "Analysed on your device. No video is recorded or uploaded."}
           </p>
         </div>
       </div>

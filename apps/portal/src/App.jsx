@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { Toaster } from "sonner"
 import SignInPage from "./pages/SignInPage"
 import InstructionsPage from "./pages/InstructionsPage"
+import SystemCheckPage from "./pages/SystemCheckPage"
 import TestPage from "./pages/TestPage"
 import SubmittedPage from "./pages/SubmittedPage"
 import ProtectedRoute from "./components/ProtectedRoute"
@@ -18,6 +19,15 @@ const App = () => (
         element={
           <ProtectedRoute>
             <InstructionsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/system-check"
+        element={
+          <ProtectedRoute>
+            <SystemCheckPage />
           </ProtectedRoute>
         }
       />

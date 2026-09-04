@@ -71,7 +71,8 @@ export const ADVISORY_VIOLATIONS = [
   "devtools",
   "device-detected",
   "multiple-people",
-  "no-person"
+  "no-person",
+  "camera-off"
 ]
 
 export const VIOLATION_TYPES = [...ENFORCED_VIOLATIONS, ...ADVISORY_VIOLATIONS]

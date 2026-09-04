@@ -7,11 +7,15 @@ import TestPage from "./pages/TestPage"
 import SubmittedPage from "./pages/SubmittedPage"
 import ProtectedRoute from "./components/ProtectedRoute"
 import DesktopOnly from "./components/DesktopOnly"
+import ErrorBoundary from "./components/ErrorBoundary"
 
 // The assessment is desktop/laptop only. DesktopOnly wraps every route, so a
 // phone or tablet sees the "use a laptop" screen from the very first page.
+// ErrorBoundary is outermost so a render crash anywhere shows a safe, reassuring
+// screen instead of a blank page - the answers are already on the server.
 const App = () => (
-  <DesktopOnly>
+  <ErrorBoundary>
+    <DesktopOnly>
     <BrowserRouter>
       <Toaster position="top-center" richColors closeButton />
 
@@ -51,7 +55,8 @@ const App = () => (
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
-  </DesktopOnly>
+    </DesktopOnly>
+  </ErrorBoundary>
 )
 
 export default App

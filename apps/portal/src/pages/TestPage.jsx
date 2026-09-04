@@ -13,6 +13,7 @@ import QuestionPalette from "../components/QuestionPalette"
 import SubmitDialog from "../components/SubmitDialog"
 import ProctorCamera from "../components/ProctorCamera"
 import FullscreenGate from "../components/FullscreenGate"
+import CameraGate from "../components/CameraGate"
 import Loading from "../components/Loading"
 import {
   enterFullscreen,
@@ -61,6 +62,12 @@ const TestPage = () => {
   // carries the user gesture the browser demands. If it did not take, the gate
   // goes up here and asks for a click of its own.
   const [fullscreenOk, setFullscreenOk] = useState(() => isFullscreen())
+
+  // Camera monitoring: "lost" gates the paper until the candidate re-enables it.
+  // retryKey remounts the camera to force a fresh permission prompt.
+  const [cameraLost, setCameraLost] = useState(false)
+  const [cameraRetrying, setCameraRetrying] = useState(false)
+  const [cameraKey, setCameraKey] = useState(0)
   const fullscreenUnsupported = !isFullscreenSupported()
 
   /* ------------------------------------------------------------- load */
@@ -147,6 +154,22 @@ const TestPage = () => {
     ({ type, detail, confidence }) => reportViolation(type, { detail, confidence }),
     [reportViolation]
   )
+
+  // "live" clears the gate; "lost" raises it. "unavailable" (no hardware) does
+  // not gate - the system check already recorded that as an exception.
+  const handleCameraState = useCallback((cameraState) => {
+    if (cameraState === "live") {
+      setCameraLost(false)
+      setCameraRetrying(false)
+    } else if (cameraState === "lost") {
+      setCameraLost(true)
+    }
+  }, [])
+
+  const handleCameraRetry = () => {
+    setCameraRetrying(true)
+    setCameraKey((k) => k + 1) // remount ProctorCamera -> fresh getUserMedia
+  }
 
   const handleViolation = useCallback(
     async (type) => {
@@ -390,7 +413,12 @@ const TestPage = () => {
             </p>
           </div>
 
-          <ProctorCamera active={status === "ready"} onFlag={handleCameraFlag} />
+          <ProctorCamera
+            active={status === "ready"}
+            onFlag={handleCameraFlag}
+            onCameraState={handleCameraState}
+            retryKey={cameraKey}
+          />
 
           {violations > 0 && (
             <div className="rounded-xl border border-gdg-red/30 bg-gdg-red/[0.06] p-3 text-xs text-gdg-red">
@@ -402,6 +430,12 @@ const TestPage = () => {
           )}
         </aside>
       </main>
+
+      <CameraGate
+        open={status === "ready" && cameraLost}
+        retrying={cameraRetrying}
+        onRetry={handleCameraRetry}
+      />
 
       <FullscreenGate
         open={status === "ready" && !fullscreenOk}

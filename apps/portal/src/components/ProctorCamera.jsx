@@ -9,25 +9,44 @@ import { useDeviceDetection } from "../utils/useDeviceDetection"
  * resulting flag - a label and a confidence - is sent to the server. Nothing is
  * recorded or uploaded.
  */
-const ProctorCamera = ({ active = true, onFlag }) => {
+const ProctorCamera = ({ active = true, onFlag, onCameraState, retryKey = 0 }) => {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
-  const [state, setState] = useState("starting") // starting | live | denied | unavailable
+  const [state, setState] = useState("starting") // starting | live | lost | denied | unavailable
   const [collapsed, setCollapsed] = useState(false)
 
+  const reportRef = useRef(onCameraState)
+  const flagRef = useRef(onFlag)
+  useEffect(() => {
+    reportRef.current = onCameraState
+    flagRef.current = onFlag
+  }, [onCameraState, onFlag])
+
+  // Re-runs when retryKey changes, so the gate's "re-enable" button can force a
+  // fresh getUserMedia (which re-prompts if permission was revoked).
   useEffect(() => {
     let cancelled = false
+    let lostFired = false
+    let poll = null
+
+    // The candidate turning the camera off mid-test - revoking permission, an
+    // OS toggle, unplugging a webcam - must not silently disable monitoring.
+    const handleLoss = () => {
+      if (cancelled || lostFired) return
+      lostFired = true
+      setState("lost")
+      reportRef.current?.("lost")
+      flagRef.current?.({ type: "camera-off", detail: "camera turned off during the test" })
+    }
 
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setState("unavailable")
+        reportRef.current?.("unavailable")
         return
       }
 
       try {
-        // Audio is requested too, so the microphone light stays on for the
-        // duration. Permission was already granted on the system-check screen,
-        // so this does not prompt again. Nothing is recorded.
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 320, height: 240, facingMode: "user" },
           audio: true
@@ -41,8 +60,22 @@ const ProctorCamera = ({ active = true, onFlag }) => {
         streamRef.current = stream
         if (videoRef.current) videoRef.current.srcObject = stream
         setState("live")
+        reportRef.current?.("live")
+
+        const videoTrack = stream.getVideoTracks()[0]
+        if (videoTrack) {
+          videoTrack.addEventListener("ended", handleLoss)
+          videoTrack.addEventListener("mute", handleLoss)
+          // Belt and braces: a revoked permission does not always fire an event,
+          // so poll the track's liveness as well.
+          poll = setInterval(() => {
+            if (!videoTrack || videoTrack.readyState === "ended" || videoTrack.muted) handleLoss()
+          }, 2000)
+        }
       } catch (error) {
-        setState(error?.name === "NotAllowedError" ? "denied" : "unavailable")
+        const denied = error?.name === "NotAllowedError"
+        setState(denied ? "denied" : "unavailable")
+        reportRef.current?.(denied ? "lost" : "unavailable")
       }
     }
 
@@ -50,10 +83,11 @@ const ProctorCamera = ({ active = true, onFlag }) => {
 
     return () => {
       cancelled = true
+      if (poll) clearInterval(poll)
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
     }
-  }, [])
+  }, [retryKey])
 
   const detection = useDeviceDetection({
     active: active && state === "live",

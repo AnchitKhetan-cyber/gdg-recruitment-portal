@@ -277,9 +277,20 @@ const TestPage = () => {
     )
   }
 
+  // Once submitting or submitted, stop rendering the paper entirely. Navigation
+  // to /submitted happens in an effect; rendering the question grid in this
+  // window is pointless and was a crash window - `question` below is dereferenced
+  // directly here, and if it were ever undefined mid-transition the page threw a
+  // render error right after submit.
+  if (status === "submitting" || status === "submitted") {
+    return <Loading label="Submitting your test" />
+  }
+
   if (!quiz) return <Loading label="Preparing your paper" />
 
   const question = quiz.questions[currentIndex]
+  if (!question) return <Loading label="Loading your paper" />
+
   const totalSeconds = quiz.duration * 60
   const isSubmitting = status === "submitting"
 

@@ -26,6 +26,11 @@ export const useAdminStore = create((set) => ({
     set({ status: "authenticated" })
   },
 
+  loginWithGoogle: async (idToken) => {
+    await api.googleLogin(idToken)
+    set({ status: "authenticated" })
+  },
+
   logout: async () => {
     await api.logout().catch(() => {})
     set({ status: "anonymous" })

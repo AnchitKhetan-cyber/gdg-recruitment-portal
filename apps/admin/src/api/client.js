@@ -35,6 +35,10 @@ const unwrap = (promise) => promise.then((r) => r.data)
 export const api = {
   /* auth */
   login: (password) => unwrap(apiClient.post("/admin/login", { password })),
+  googleLogin: (idToken) =>
+    unwrap(
+      apiClient.post("/admin/google-login", {}, { headers: { Authorization: `Bearer ${idToken}` } })
+    ),
   verify: () => unwrap(apiClient.get("/admin/verify")),
   logout: () => unwrap(apiClient.get("/admin/logout")),
 

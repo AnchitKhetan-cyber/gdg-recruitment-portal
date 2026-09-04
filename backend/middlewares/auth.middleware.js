@@ -31,8 +31,10 @@ export const generateToken = (user) => {
   )
 }
 
-export const generateAdminToken = () =>
-  jwt.sign({ role: "admin", isAdmin: true }, env.jwtSecret, { expiresIn: ADMIN_TOKEN_TTL })
+export const generateAdminToken = (email = null) =>
+  jwt.sign({ role: "admin", isAdmin: true, email }, env.jwtSecret, {
+    expiresIn: ADMIN_TOKEN_TTL
+  })
 
 /**
  * Verifies the Firebase ID token on the Authorization header. Used only by the
@@ -96,6 +98,6 @@ export const adminAuthMiddleware = (req, _res, next) => {
     return next(ApiError.forbidden("Admin access required"))
   }
 
-  req.admin = { role: decoded.role, isAdmin: decoded.isAdmin }
+  req.admin = { role: decoded.role, isAdmin: decoded.isAdmin, email: decoded.email || null }
   next()
 }

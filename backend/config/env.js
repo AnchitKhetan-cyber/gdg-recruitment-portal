@@ -59,6 +59,13 @@ export const env = {
   adminPassword: process.env.ADMIN_PASSWORD,
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH,
 
+  /**
+   * Exact email addresses allowed into the admin panel via Google sign-in.
+   * Distinct from the candidate domain rule - admin access is an explicit
+   * allowlist, never a whole domain. Comma-separated, case-insensitive.
+   */
+  adminEmails: list(process.env.ADMIN_EMAILS, []).map((e) => e.toLowerCase()),
+
   allowInsecureDevLogin: bool(process.env.AUTH_ALLOW_INSECURE_DEV_LOGIN, false),
   maxViolations: int(process.env.MAX_VIOLATIONS, 4),
 
@@ -84,8 +91,12 @@ export const assertEnv = () => {
     problems.push("JWT_SECRET must be set to a string of at least 16 characters")
   }
 
-  if (!env.adminPassword && !env.adminPasswordHash) {
-    problems.push("Either ADMIN_PASSWORD or ADMIN_PASSWORD_HASH must be set")
+  // Admin access needs at least one route in: Google sign-in (ADMIN_EMAILS) or
+  // a password. Either alone is a complete configuration.
+  if (!env.adminPassword && !env.adminPasswordHash && !env.adminEmails.length) {
+    problems.push(
+      "Set ADMIN_EMAILS (Google sign-in) and/or ADMIN_PASSWORD / ADMIN_PASSWORD_HASH"
+    )
   }
 
   if (env.isProduction) {

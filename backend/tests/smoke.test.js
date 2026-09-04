@@ -21,6 +21,15 @@ process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "test-admin-password"
 // clear anything the real backend/.env would otherwise leak in through dotenv.
 process.env.ADMIN_PASSWORD_HASH = ""
 process.env.ALLOWED_EMAIL_DOMAINS = ""
+process.env.ADMIN_EMAILS = "boss@gdg.dev"
+// Lets the admin google-login test decode an unsigned token without a real
+// Firebase project; candidate tests mint sessions directly and are unaffected.
+// The real .env's service-account key must be cleared too, or a real Firebase
+// admin initialises and rejects the unsigned dev token before the bypass runs.
+process.env.AUTH_ALLOW_INSECURE_DEV_LOGIN = "true"
+process.env.FIREBASE_SERVICE_ACCOUNT_KEY = ""
+process.env.FIREBASE_PROJECT_ID = ""
+process.env.FIREBASE_CLIENT_EMAIL = ""
 process.env.MAX_VIOLATIONS = "3"
 
 const { createApp } = await import("../app.js")
@@ -458,6 +467,54 @@ await test("an out-of-range selectedOption is discarded rather than trusted", as
 section("Admin panel API")
 
 const admin = makeClient()
+
+section("Admin Google sign-in (email allowlist)")
+
+// An unsigned token the dev-login path decodes, standing in for a Google token.
+const devToken = (email) => {
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
+  return `${enc({ alg: "none", typ: "JWT" })}.${enc({
+    sub: email,
+    email,
+    email_verified: true
+  })}.dev`
+}
+
+await test("an allowlisted Google account is admitted", async () => {
+  const client = makeClient()
+  const { status } = await client("/api/admin/google-login", {
+    method: "POST",
+    body: {},
+    headers: { Authorization: `Bearer ${devToken("boss@gdg.dev")}` }
+  })
+  assert.equal(status, 200)
+
+  // The cookie it set must actually unlock the admin API.
+  const verify = await client("/api/admin/verify")
+  assert.equal(verify.status, 200)
+  assert.equal(verify.data.admin.email, "boss@gdg.dev")
+})
+
+await test("a Google account not on the allowlist is rejected", async () => {
+  const client = makeClient()
+  const { status, data } = await client("/api/admin/google-login", {
+    method: "POST",
+    body: {},
+    headers: { Authorization: `Bearer ${devToken("stranger@gmail.com")}` }
+  })
+  assert.equal(status, 403)
+  assert.match(data.message, /not an authorised admin/)
+})
+
+await test("the allowlist match is case-insensitive", async () => {
+  const client = makeClient()
+  const { status } = await client("/api/admin/google-login", {
+    method: "POST",
+    body: {},
+    headers: { Authorization: `Bearer ${devToken("BOSS@GDG.DEV")}` }
+  })
+  assert.equal(status, 200)
+})
 
 await test("admin login rejects a wrong password", async () => {
   const { status } = await admin("/api/admin/login", {

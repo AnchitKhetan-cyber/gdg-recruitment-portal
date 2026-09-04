@@ -1,9 +1,10 @@
 import { Router } from "express"
-import { adminAuthMiddleware } from "../middlewares/auth.middleware.js"
+import { adminAuthMiddleware, firebaseAuthMiddleware } from "../middlewares/auth.middleware.js"
 import { limitAdminAuth } from "../middlewares/rateLimit.middleware.js"
 import {
   activateQuiz,
   addAllowedUser,
+  adminGoogleLogin,
   adminLogin,
   adminLogout,
   bulkAddAllowedUsers,
@@ -31,6 +32,9 @@ const adminRoutes = Router()
 
 // Public.
 adminRoutes.post("/login", limitAdminAuth, adminLogin)
+// Google sign-in: firebaseAuthMiddleware verifies the token, the controller
+// enforces the ADMIN_EMAILS allowlist.
+adminRoutes.post("/google-login", limitAdminAuth, firebaseAuthMiddleware, adminGoogleLogin)
 
 // Everything below requires the admin session cookie.
 adminRoutes.use(adminAuthMiddleware)

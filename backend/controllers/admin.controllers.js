@@ -29,6 +29,10 @@ const safeEqual = (a, b) => {
 export const adminLogin = asyncHandler(async (req, res) => {
   const { password } = parseOrThrow(loginSchema, req.body)
 
+  if (!env.adminPassword && !env.adminPasswordHash) {
+    throw ApiError.forbidden("Password login is disabled. Sign in with Google.")
+  }
+
   const valid = env.adminPasswordHash
     ? await bcrypt.compare(password, env.adminPasswordHash)
     : safeEqual(password, env.adminPassword)
@@ -37,6 +41,34 @@ export const adminLogin = asyncHandler(async (req, res) => {
 
   res.cookie(ADMIN_COOKIE, generateAdminToken(), cookieOptions(ADMIN_TTL_MS))
   return ok(res, {}, "Admin login successful")
+})
+
+/**
+ * POST /api/admin/google-login
+ *
+ * The Firebase ID token is verified by firebaseAuthMiddleware, so req.firebaseUser
+ * is trustworthy here. Admission is by an explicit email allowlist (ADMIN_EMAILS)
+ * - never a whole domain - and the verified email is stamped into the admin
+ * token so actions can be attributed.
+ */
+export const adminGoogleLogin = asyncHandler(async (req, res) => {
+  const { email, emailVerified } = req.firebaseUser
+
+  if (!email || !emailVerified) {
+    throw ApiError.forbidden("Your Google email is not verified.")
+  }
+
+  if (!env.adminEmails.length) {
+    throw ApiError.forbidden("Google sign-in for admins is not configured.")
+  }
+
+  const normalized = email.toLowerCase().trim()
+  if (!env.adminEmails.includes(normalized)) {
+    throw ApiError.forbidden("This Google account is not an authorised admin.")
+  }
+
+  res.cookie(ADMIN_COOKIE, generateAdminToken(normalized), cookieOptions(ADMIN_TTL_MS))
+  return ok(res, { admin: { email: normalized } }, "Admin signed in with Google")
 })
 
 export const adminLogout = asyncHandler(async (_req, res) => {

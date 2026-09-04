@@ -279,26 +279,43 @@ export const startQuiz = asyncHandler(async (req, res) => {
 export const saveProgress = asyncHandler(async (req, res) => {
   const { responses } = parseOrThrow(progressSchema, req.body)
 
-  const user = await User.findOne({ _id: req.user.id, email: req.user.email })
-  if (!user) throw ApiError.notFound("User not found")
-  if (!user.hasStarted || !user.quiz) throw ApiError.badRequest("Test has not been started")
-  if (user.hasSubmitted) throw ApiError.badRequest("Test already submitted")
+  // Read ONLY the fields the merge and the clock need - never the frozen quiz
+  // snapshot (question text, options, images). A full findOne + user.save()
+  // rewrote that entire snapshot on every autosave; with hundreds of candidates
+  // saving every couple of seconds, that write amplification is what buried the
+  // database under load.
+  const doc = await User.findOne({ _id: req.user.id, email: req.user.email })
+    .select("hasStarted hasSubmitted startedAt responses quiz.duration quiz.questions.id")
+    .lean()
 
-  const validIds = new Set(user.quiz.questions.map((q) => q.id.toString()))
+  if (!doc) throw ApiError.notFound("User not found")
+  if (!doc.hasStarted || !doc.quiz) throw ApiError.badRequest("Test has not been started")
+  if (doc.hasSubmitted) throw ApiError.badRequest("Test already submitted")
 
-  user.responses = mergeProgress(user.responses, responses, validIds)
-  user.timeUsed = user.getElapsedSeconds()
+  const total = (doc.quiz.duration || 0) * 60
+  const elapsed = doc.startedAt
+    ? Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000)
+    : 0
+  const timeRemaining = Math.max(0, total - elapsed)
+  const timeUsed = Math.min(total, Math.max(0, elapsed))
 
-  const timeRemaining = user.getTimeRemaining()
-
+  // Deadline reached: close and grade. Rare path, so paying for the full doc
+  // load here is fine.
   if (timeRemaining <= 0) {
-    const result = await finalizeAttempt(user, { autoReason: "time-expired" })
+    const full = await User.findById(doc._id)
+    const result = await finalizeAttempt(full, { autoReason: "time-expired" })
     return ok(res, { submitted: true, ...result }, "Time expired - your test was submitted")
   }
 
-  await user.save()
+  const validIds = new Set((doc.quiz.questions || []).map((q) => q.id.toString()))
+  const merged = mergeProgress(doc.responses || [], responses, validIds)
 
-  return ok(res, { submitted: false, timeRemaining, saved: user.responses.length }, "Progress saved")
+  // Update only the two fields that changed. The answer set is cumulative, so a
+  // save that is lost to a crash is re-sent on the next tick or on resume - the
+  // candidate never loses more than the newest answer or two.
+  await User.updateOne({ _id: doc._id }, { $set: { responses: merged, timeUsed } })
+
+  return ok(res, { submitted: false, timeRemaining, saved: merged.length }, "Progress saved")
 })
 
 /**
@@ -377,7 +394,10 @@ async function finalizeAttempt(user, { submitted = [], autoReason = null } = {})
   user.autoSubmitted = Boolean(autoReason)
   user.autoSubmitReason = autoReason
 
-  await user.save()
+  // The final graded result must survive a database crash the instant it is
+  // acknowledged, so this one write waits for the journal to hit disk (j:true).
+  // Autosaves stay unjournaled for throughput; only this endpoint pays for it.
+  await user.save({ w: 1, j: true })
 
   // The score is deliberately withheld from the candidate.
   return {

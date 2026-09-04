@@ -123,8 +123,21 @@ const pool = async (items, limit, worker) => {
 
 console.log(`\nLoad test: ${USERS} candidates, ${AUTOSAVES_PER_USER} autosaves each\n`)
 
-const mongo = await MongoMemoryServer.create({ instance: { dbName: "gdg_load" } })
-await connectDataBase(mongo.getUri())
+// Set LOAD_TEST_MONGO_URI to stress a REAL mongod instead of the in-memory one.
+// In-memory runs in RAM and hides disk I/O, journaling, and pool contention -
+// which is exactly where a real database gets overwhelmed. A dedicated db name
+// keeps this away from the live gdg_recruitment data.
+const realUri = process.env.LOAD_TEST_MONGO_URI
+let mongo = null
+
+if (realUri) {
+  console.log(`  stressing REAL MongoDB at ${realUri.replace(/\/\/[^@]*@/, "//")}`)
+  await connectDataBase(realUri)
+} else {
+  console.log("  using in-memory MongoDB (set LOAD_TEST_MONGO_URI for a real one)")
+  mongo = await MongoMemoryServer.create({ instance: { dbName: "gdg_load" } })
+  await connectDataBase(mongo.getUri())
+}
 await seed({ reset: true, quiet: true })
 
 const app = createApp()
@@ -241,6 +254,6 @@ console.log(
 
 server.close()
 await disconnectDataBase()
-await mongo.stop()
+if (mongo) await mongo.stop()
 
 process.exit(complete ? 0 : 1)

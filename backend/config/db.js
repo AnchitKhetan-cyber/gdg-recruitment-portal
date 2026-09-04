@@ -17,7 +17,13 @@ export const connectDataBase = async (uri = env.mongoUri) => {
   })
 
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10_000
+    serverSelectionTimeoutMS: 10_000,
+    // Cap concurrent connections so a burst of autosaves queues briefly instead
+    // of opening unbounded sockets and overwhelming the database. Tune via
+    // DB_MAX_POOL for a bigger deployment.
+    maxPoolSize: Number.parseInt(process.env.DB_MAX_POOL, 10) || 50,
+    minPoolSize: 5,
+    socketTimeoutMS: 45_000
   })
 
   const { host, port, name } = mongoose.connection

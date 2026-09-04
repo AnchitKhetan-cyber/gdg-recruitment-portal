@@ -117,6 +117,20 @@ const TestPage = () => {
     return () => clearInterval(interval)
   }, [status, save, navigate])
 
+  // Save shortly after each answer, not only on the 12s heartbeat. The timer is
+  // reset on every change, so a burst of answers collapses into one request ~1.5s
+  // after the candidate stops - shrinking the crash-loss window from 12s to ~1.5s
+  // without a request per click.
+  useEffect(() => {
+    if (status !== "ready") return undefined
+    const timer = setTimeout(() => {
+      save().then((closed) => {
+        if (closed) navigate("/submitted", { replace: true, state: { reason: "time-expired" } })
+      })
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [answers, status, save, navigate])
+
   // Best-effort flush when the tab goes away, so the last answer is not lost.
   useEffect(() => {
     const flush = () => {

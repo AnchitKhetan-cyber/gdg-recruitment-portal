@@ -195,6 +195,10 @@ const TestPage = () => {
 
   useProctoring({
     active: status === "ready",
+    // Pause tab-switch / blur recording while a gate is up: the candidate is
+    // fixing the camera or fullscreen at our instruction, and the focus change
+    // that requires must not be logged against them.
+    paused: cameraLost || !fullscreenOk,
     onViolation: handleViolation,
     onFullscreenLost: handleFullscreenLost
   })

@@ -11,15 +11,18 @@ import { onFullscreenChange } from "./fullscreen"
  */
 const COOLDOWN_MS = 1500
 
-export const useProctoring = ({ active, onViolation, onFullscreenLost }) => {
+export const useProctoring = ({ active, paused = false, onViolation, onFullscreenLost }) => {
   const lastReportRef = useRef(0)
   const onViolationRef = useRef(onViolation)
   const onFullscreenLostRef = useRef(onFullscreenLost)
+  // Read live so toggling `paused` never needs to re-attach the listeners.
+  const pausedRef = useRef(paused)
 
   useEffect(() => {
     onViolationRef.current = onViolation
     onFullscreenLostRef.current = onFullscreenLost
-  }, [onViolation, onFullscreenLost])
+    pausedRef.current = paused
+  }, [onViolation, onFullscreenLost, paused])
 
   useEffect(() => {
     if (!active) return undefined
@@ -31,11 +34,16 @@ export const useProctoring = ({ active, onViolation, onFullscreenLost }) => {
       onViolationRef.current?.(type)
     }
 
+    // While a gate is up (camera off, or out of fullscreen), the candidate is
+    // being told to fix something - clicking the browser's permission control
+    // steals focus. Do not count that as a tab switch or window blur.
     const onVisibilityChange = () => {
-      if (document.hidden) report("tab-switch")
+      if (document.hidden && !pausedRef.current) report("tab-switch")
     }
 
-    const onBlur = () => report("window-blur")
+    const onBlur = () => {
+      if (!pausedRef.current) report("window-blur")
+    }
 
     const onCopyOrPaste = (event) => {
       event.preventDefault()

@@ -183,9 +183,14 @@ LOAD_TEST_MONGO_URI="mongodb://127.0.0.1:27017/gdg_load" npm run test:load -- --
 ## Deployment
 
 ```bash
+cp .env.example .env          # set MONGO_ROOT_PASSWORD (repo-root .env)
 docker compose up -d          # MongoDB + API
 npm run build                 # static bundles for both front-ends
 ```
+
+The MongoDB container runs with authentication and is **not** published to the
+host - the API reaches it only over the internal compose network. Compose
+refuses to start without `MONGO_ROOT_PASSWORD` set in the repo-root `.env`.
 
 Serve `apps/portal/dist` and `apps/admin/dist` as static sites (Vercel, Netlify,
 nginx). Set `VITE_API_URL` at build time to the deployed API origin, and list both

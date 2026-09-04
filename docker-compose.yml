@@ -5,6 +5,14 @@
 #   docker compose down           stop (data survives in the mongo-data volume)
 #   docker compose down -v        stop and wipe the database
 #
+# Before the first run, create a .env FILE NEXT TO THIS ONE (repo root) with a
+# strong database password - compose substitutes ${...} from it:
+#
+#   MONGO_ROOT_USER=gdgadmin
+#   MONGO_ROOT_PASSWORD=<a long random string>
+#
+# See .env.example. That file is gitignored; never commit real credentials.
+#
 # The two front-ends are run with `npm run dev:portal` / `npm run dev:admin`,
 # or built with `npm run build` and served as static files.
 
@@ -13,16 +21,48 @@ services:
     image: mongo:7
     container_name: gdg-mongo
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+
+    # Access control is ON: the official image enables --auth automatically once
+    # these root credentials are set. Compose fails fast (:?) if the password is
+    # missing, so the database is never brought up unauthenticated.
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-gdgadmin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in the repo-root .env}
+
+    # No published port. The API reaches the database over the internal compose
+    # network at mongo:27017; publishing 27017 would expose it to the host and,
+    # on a server, the wider network. `expose` keeps it reachable only to other
+    # services on this network.
+    #
+    # To connect with mongosh locally, uncomment this LOOPBACK-ONLY mapping - it
+    # binds to 127.0.0.1 so nothing off this machine can reach it:
+    #   ports:
+    #     - "127.0.0.1:27017:27017"
+    expose:
+      - "27017"
+
     volumes:
       - mongo-data:/data/db
+
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "-u",
+          "${MONGO_ROOT_USER:-gdgadmin}",
+          "-p",
+          "${MONGO_ROOT_PASSWORD}",
+          "--authenticationDatabase",
+          "admin",
+          "--quiet",
+          "--eval",
+          "db.adminCommand('ping')"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
   api:
     build:
@@ -34,10 +74,12 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    # `environment` overrides any MONGO_URI in backend/.env, so the containerised
+    # API always uses the authenticated in-network connection string.
     environment:
       NODE_ENV: production
       PORT: 8000
-      MONGO_URI: mongodb://mongo:27017/gdg_recruitment
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-gdgadmin}:${MONGO_ROOT_PASSWORD}@mongo:27017/gdg_recruitment?authSource=admin
     env_file:
       - ./backend/.env
 

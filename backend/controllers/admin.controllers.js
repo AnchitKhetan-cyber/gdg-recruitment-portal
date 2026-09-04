@@ -354,7 +354,7 @@ export const getAllResults = asyncHandler(async (req, res) => {
   const [users, total, stats] = await Promise.all([
     User.find(query)
       .select(
-        "name email phone hasStarted hasSubmitted score maxScore qualifiedForInterview timeUsed violations autoSubmitted autoSubmitReason startedAt submittedAt createdAt"
+        "name email phone hasStarted hasSubmitted score maxScore qualifiedForInterview timeUsed violations autoSubmitted autoSubmitReason startedAt submittedAt createdAt responses quiz.duration quiz.questions.id"
       )
       .sort({ [sortField]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
@@ -364,11 +364,19 @@ export const getAllResults = asyncHandler(async (req, res) => {
     getStatusCounts()
   ])
 
-  const rows = users.map(({ violations = [], ...rest }) => ({
+  const rows = users.map(({ violations = [], responses = [], quiz, ...rest }) => ({
     ...rest,
     // Split, so a reviewer can tell a deliberate tab switch from a camera guess.
     violationCount: violations.filter((v) => ENFORCED_VIOLATIONS.includes(v.type)).length,
-    flagCount: violations.filter((v) => !ENFORCED_VIOLATIONS.includes(v.type)).length
+    flagCount: violations.filter((v) => !ENFORCED_VIOLATIONS.includes(v.type)).length,
+    // Live progress for monitoring during the drive: how far each candidate has
+    // got, computed here so the heavy responses array never leaves the server.
+    answeredCount: responses.filter((r) => r.selectedOption >= 0).length,
+    totalQuestions: quiz?.questions?.length || 0,
+    timeRemaining:
+      quiz?.duration && rest.startedAt && !rest.hasSubmitted
+        ? Math.max(0, quiz.duration * 60 - Math.floor((Date.now() - new Date(rest.startedAt).getTime()) / 1000))
+        : null
   }))
 
   return ok(

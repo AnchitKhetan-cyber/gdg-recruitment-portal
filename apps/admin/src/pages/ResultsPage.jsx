@@ -52,6 +52,7 @@ const ResultsPage = () => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [shortlisting, setShortlisting] = useState(false)
+  const [live, setLive] = useState(false)
 
   const debouncedSearch = useDebounced(search)
 
@@ -60,16 +61,27 @@ const ResultsPage = () => {
     [page, debouncedSearch, status, qualified, sortBy, order]
   )
 
-  const refresh = useCallback(() => {
-    setLoading(true)
-    api
-      .listResults(params)
-      .then(setData)
-      .catch((error) => toast.error(error.message))
-      .finally(() => setLoading(false))
-  }, [params])
+  const refresh = useCallback(
+    (silent = false) => {
+      if (!silent) setLoading(true)
+      api
+        .listResults(params)
+        .then(setData)
+        .catch((error) => !silent && toast.error(error.message))
+        .finally(() => !silent && setLoading(false))
+    },
+    [params]
+  )
 
-  useEffect(refresh, [refresh])
+  useEffect(() => refresh(), [refresh])
+
+  // Live mode: poll every 5s without the loading flicker, so organisers can
+  // watch progress during the drive. Silent so the table does not blank out.
+  useEffect(() => {
+    if (!live) return undefined
+    const timer = setInterval(() => refresh(true), 5000)
+    return () => clearInterval(timer)
+  }, [live, refresh])
 
   // Reset to page 1 whenever a filter changes, so the view is never empty.
   useEffect(() => {
@@ -155,12 +167,23 @@ const ResultsPage = () => {
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Results</h1>
           <p className="mt-1 text-sm text-ink-muted">
             {stats
-              ? `${stats.total} registered · ${stats.submitted} submitted · ${stats.qualified} shortlisted`
+              ? `${stats.total} registered · ${stats.inProgress} writing now · ${stats.submitted} submitted · ${stats.qualified} shortlisted`
               : "Loading..."}
           </p>
         </div>
 
         <div className="flex gap-2">
+          <Button
+            variant={live ? "success" : "secondary"}
+            onClick={() => setLive((v) => !v)}
+            title="Auto-refresh every 5 seconds"
+          >
+            <span
+              className={`inline-block size-2 rounded-full ${live ? "animate-pulse bg-white" : "bg-ink-subtle"}`}
+              aria-hidden="true"
+            />
+            {live ? "Live" : "Go live"}
+          </Button>
           <Button onClick={handleShortlist} loading={shortlisting}>
             <Sparkles className="size-4" aria-hidden="true" />
             Auto-shortlist
@@ -307,13 +330,23 @@ const ResultsPage = () => {
                               <span className="text-ink-subtle">/{user.maxScore}</span>
                               <span className="ml-1.5 text-xs text-ink-subtle">{percentage}%</span>
                             </>
+                          ) : user.hasStarted ? (
+                            // Live progress while the candidate is still writing.
+                            <span className="text-[#1b7a3d]">
+                              {user.answeredCount}
+                              <span className="text-ink-subtle">/{user.totalQuestions} ans</span>
+                            </span>
                           ) : (
                             <span className="text-ink-subtle">-</span>
                           )}
                         </td>
 
                         <td className="px-4 py-3 font-mono text-xs tabular-nums text-ink-muted">
-                          {user.hasSubmitted ? formatDuration(user.timeUsed) : "-"}
+                          {user.hasSubmitted
+                            ? formatDuration(user.timeUsed)
+                            : user.hasStarted && user.timeRemaining != null
+                              ? `${formatDuration(user.timeRemaining)} left`
+                              : "-"}
                         </td>
 
                         <td className="px-4 py-3">
